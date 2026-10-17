@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Despacho</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Despacho">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1d5c40">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: «Despacho». Una columna que se lee de arriba abajo en el móvil: parte → soltar → a tu firma → agenda → delegado → radar → libreta; lo demás plegado. */
+:root {
+  --bg: #f3f5f2;
+  --paper: #fbfcfa;
+  --ink: #17211b;
+  --muted: #5d6a61;
+  --line: #d6ddd6;
+  --green: #1d5c40;
+  --green-soft: #dfeae2;
+  --flag: #9a6c06;
+  --flag-soft: #f6ecd2;
+  --crit: #a8322a;
+  --crit-soft: #f5dfdb;
+  --ok: #2e7a50;
+  --scrim: rgba(10, 18, 13, .45);
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-body: "Public Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --paper: #18201b; --ink: #e4ebe5; --muted: #95a399; --line: #2c3730;
+    --green: #7fc29c; --green-soft: #1d3125; --flag: #e2b04a; --flag-soft: #3a2f15;
+    --crit: #ec8a7f; --crit-soft: #3d221f; --ok: #7fc29c; --scrim: rgba(0, 0, 0, .6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --paper: #18201b; --ink: #e4ebe5; --muted: #95a399; --line: #2c3730;
+  --green: #7fc29c; --green-soft: #1d3125; --flag: #e2b04a; --flag-soft: #3a2f15;
+  --crit: #ec8a7f; --crit-soft: #3d221f; --ok: #7fc29c; --scrim: rgba(0, 0, 0, .6); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15.5px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 56px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+.panel { display: flex; flex-direction: column; gap: 32px; }
+h1, h2, h3, h4 { margin: 0; font-weight: 500; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--green); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+
+header { padding-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+.toprow { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--paper); }
+.tabs button { border: 0; background: transparent; padding: 5px 14px; border-radius: 999px; font-size: 13.5px; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+h1 { font-family: var(--font-display); font-size: clamp(34px, 7vw, 50px); line-height: 1; letter-spacing: -.01em; }
+h1 em { color: var(--green); }
+.banner { padding: 10px 12px; border-radius: 8px; background: var(--flag-soft); font-size: 13.5px; }
+.banner.err { background: var(--crit-soft); }
+
+.parte { display: flex; flex-direction: column; gap: 9px; border-left: 2px solid var(--green); padding: 2px 0 2px 16px; }
+.parte p { font-family: var(--font-display); font-size: 20px; line-height: 1.38; max-width: 60ch; }
+.parte .empty { font-family: var(--font-body); font-size: 15px; color: var(--muted); }
+.when { font-size: 12.5px; color: var(--muted); }
+
+.soltar { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.soltar textarea { width: 100%; min-height: 64px; resize: vertical; border: 0; background: transparent; padding: 2px 0; }
+.soltar textarea::placeholder { color: var(--muted); }
+.soltar .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px dashed var(--line); padding-top: 8px; }
+.hint { font-size: 12.5px; color: var(--muted); }
+.status { font-size: 13px; color: var(--muted); min-height: 1.2em; }
+.status.err { color: var(--crit); }
+
+section { display: flex; flex-direction: column; gap: 10px; }
+.shead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.shead h2 { font-family: var(--font-display); font-size: 27px; }
+.shead .label { white-space: nowrap; }
+.empty-s { color: var(--muted); font-size: 14.5px; padding: 4px 0; }
+
+.firma { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px 13px; display: flex; flex-direction: column; gap: 9px; }
+.firma.urg { border-color: color-mix(in srgb, var(--crit) 45%, var(--line)); }
+.fhead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: baseline; }
+.fnum { font-family: var(--font-display); font-size: 26px; color: var(--muted); line-height: 1; }
+.fhead h3 { font-size: 17px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.why { grid-column: 2; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; grid-column: 2; }
+.chip { font-family: var(--font-mono); font-size: 11px; letter-spacing: .03em; padding: 2px 7px; border-radius: 4px; background: var(--green-soft); color: var(--green); }
+.chip.flag { background: var(--flag-soft); color: var(--flag); }
+.chip.crit { background: var(--crit-soft); color: var(--crit); }
+.reco { font-size: 15px; overflow-wrap: anywhere; }
+.reco b, .nov b { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--green); margin-right: 6px; font-weight: 500; }
+.nov { font-size: 13.5px; overflow-wrap: anywhere; }
+.nov b { color: var(--flag); }
+.acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--paper); border-radius: 8px; padding: 7px 14px; font-size: 14px; font-weight: 500; }
+.btn.go { background: var(--green); border-color: var(--green); color: var(--paper); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.danger { color: var(--crit); border-color: var(--crit); background: transparent; }
+.btn:disabled { opacity: .55; cursor: default; }
+.mini { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 2px 11px; font-size: 12.5px; color: var(--green); }
+
+.day { display: flex; flex-direction: column; }
+.dayh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 8px 0 5px; flex-wrap: wrap; }
+.dayh h3 { font-size: 15px; font-weight: 600; }
+.alert { font-size: 13px; color: var(--flag); }
+.ev { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 2px 14px; padding: 9px 0; border-top: 1px solid var(--line); }
+.ev .t { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.ev .t.clash { color: var(--crit); font-weight: 500; }
+.ev .s { font-weight: 500; overflow-wrap: anywhere; }
+.ev .s a { color: inherit; text-decoration: none; }
+.ev .p { grid-column: 2; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+.ev .p b { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--green); margin-right: 6px; font-weight: 500; }
+.ev .p.warn b { color: var(--crit); }
+.ev.tor .s { color: var(--green); }
+
+.del { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 12px; padding: 11px 0; border-top: 1px solid var(--line); align-items: start; }
+.who { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.what { font-weight: 500; overflow-wrap: anywhere; }
+.note { font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+.state { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; text-align: right; color: var(--flag); }
+.state.done { color: var(--ok); }
+.del .acts { grid-column: 2 / -1; margin-top: 4px; }
+.tick { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--muted); background: transparent; padding: 0; margin-top: 2px; flex: none; }
+.tick:hover { border-color: var(--green); background: var(--green-soft); }
+
+.radar { list-style: none; margin: 0; padding: 0; }
+.radar li { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); align-items: baseline; }
+.radar .d { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.radar .n { overflow-wrap: anywhere; }
+.radar .k { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.radar li.lim .n { color: var(--crit); }
+
+.entry { padding: 12px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.entry .raw { font-family: var(--font-display); font-style: italic; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; white-space: pre-wrap; }
+.entry .meta { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.outs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.outs li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; font-size: 14px; align-items: baseline; }
+.kind { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--green); }
+.kind.idea { color: var(--flag); }
+.link { color: var(--muted); }
+.temas { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.tema { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--paper); min-width: 0; }
+.tema h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.tema ul { margin: 0; padding-left: 16px; font-size: 13.5px; }
+
+details.fold { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+details.fold + details.fold { border-top: 0; }
+details.fold > summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 10px; padding: 11px 0; font-size: 14.5px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary .label::after { content: " ▸"; }
+details.fold[open] > summary .label::after { content: " ▾"; }
+.fl { list-style: none; margin: 0 0 10px; padding: 0; }
+.fl li { padding: 8px 0; border-top: 1px dashed var(--line); font-size: 14.5px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.fl li .t { overflow-wrap: anywhere; cursor: pointer; }
+.fl li .r { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.fl li.blk .t { color: var(--muted); }
+.fl li.plain { grid-template-columns: minmax(0, 1fr) auto; }
+
+.overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 20;
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); }
+@media (min-width: 700px) { .overlay { align-items: center; } }
+.editor { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 18px; }
+.editor h3 { font-family: var(--font-display); font-size: 22px; margin-bottom: 12px; }
+.f { display: grid; gap: 4px; margin-bottom: 10px; }
+.f label { font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.f input, .f select, .f textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); width: 100%; }
+.f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.editor-actions { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.foot { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; max-width: 64ch; }
+@media (max-width: 480px) {
+  .ev, .radar li { grid-template-columns: 76px minmax(0, 1fr); }
+  .radar .k { grid-column: 2; }
+  .parte p { font-size: 18.5px; }
+  .outs li { grid-template-columns: 1fr; gap: 0; }
+  .f2 { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) { .btn, .mini, .tick { transition: background .15s, border-color .15s; } }
+</style>
+<style>
+/* Añadidos de la app: acceso, dictado y aviso de pedido de borrador. */
+body { padding-top: env(safe-area-inset-top, 0px); }
+.login { max-width: 420px; margin: 12vh auto 0; display: flex; flex-direction: column; gap: 14px; }
+.login h1 { font-size: 44px; }
+.login .f input { font-size: 16px; }
+.login .acts { margin-top: 4px; }
+.mic { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; width: 40px; height: 40px; font-size: 18px; line-height: 1; display: inline-grid; place-items: center; }
+.mic[aria-pressed="true"] { background: var(--crit-soft); border-color: var(--crit); color: var(--crit); }
+.soltar .row .acts { align-items: center; }
+.pend { font-size: 13px; color: var(--flag); }
+.salir { border: 0; background: transparent; color: var(--muted); font-size: 12.5px; text-decoration: underline; padding: 0; }
+</style>
+</head>
+<body>
+
+<div class="wrap" id="loginView" hidden>
+  <div class="login">
+    <span class="label">Despacho</span>
+    <h1>Hola, <em>Sergio</em></h1>
+    <p class="muted">Entra con tu correo y tu contraseña. La primera vez, pulsa «Crear acceso», confirma el correo que te llega y vuelve aquí.</p>
+    <div class="f"><label for="lgEmail">Correo</label><input id="lgEmail" type="email" autocomplete="username" value="sergio.vela@cngolf.es"></div>
+    <div class="f"><label for="lgPass">Contraseña</label><input id="lgPass" type="password" autocomplete="current-password" minlength="8"></div>
+    <div class="acts"><button class="btn go" id="lgIn">Entrar</button><button class="btn" id="lgUp">Crear acceso</button></div>
+    <p class="status" id="lgStatus" aria-live="polite"></p>
+  </div>
+</div>
+
+<div class="wrap" id="appView" hidden>
+  <header>
+    <div class="toprow">
+      <span class="label" id="dateLine">Despacho</span>
+      <div class="tabs" role="tablist" aria-label="Ámbito">
+        <button role="tab" id="tabCng" aria-selected="true" aria-controls="cng">CNG</button>
+        <button role="tab" id="tabPer" aria-selected="false" aria-controls="per">Personal</button>
+      </div>
+    </div>
+    <h1 id="greet">Hola, <em>Sergio</em></h1>
+  </header>
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="soltar">
+    <label class="label" for="suelta">Suelta lo que tengas en la cabeza</label>
+    <textarea id="suelta" placeholder="Escribe o dicta: tareas, ideas, cosas que hablar con alguien…"></textarea>
+    <div class="row">
+      <span class="hint" id="soltarHint">Lo ordeno y lo engancho a su asunto, persona o reunión.</span>
+      <div class="acts"><button class="mic" id="btnMic" aria-pressed="false" aria-label="Dictar" hidden>🎙</button><button class="btn go" id="btnSoltar">Soltar</button></div>
+    </div>
+    <p class="status" id="soltarStatus" aria-live="polite"></p>
+  </div>
+
+  <div id="cng" role="tabpanel" aria-labelledby="tabCng" class="panel">
+    <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El parte llega a las 09:10 y se rehace a las 13:10, 16:10, 18:10 y 21:10.</p></div>
+    <section aria-labelledby="h-firma">
+      <div class="shead"><h2 id="h-firma">A tu firma</h2><span class="label" id="firmaN"></span></div>
+      <div id="firma"></div>
+    </section>
+    <section aria-labelledby="h-agenda">
+      <div class="shead"><h2 id="h-agenda">Agenda</h2><span class="label" id="agendaSub"></span></div>
+      <div id="agenda"><p class="empty-s">Cargando la agenda…</p></div>
+    </section>
+    <section aria-labelledby="h-del">
+      <div class="shead"><h2 id="h-del">Delegado y en espera</h2><span class="label" id="delN"></span></div>
+      <div id="delegado"></div>
+    </section>
+    <section aria-labelledby="h-radar">
+      <div class="shead"><h2 id="h-radar">Radar · 14 días</h2><span class="label">torneos y plazos</span></div>
+      <ul class="radar" id="radar"></ul>
+    </section>
+    <section aria-labelledby="h-lib">
+      <div class="shead"><h2 id="h-lib">Libreta</h2><span class="label">lo que soltaste y dónde fue</span></div>
+      <div id="libreta"></div>
+      <div id="temas"></div>
+    </section>
+    <div>
+      <details class="fold"><summary><span>Tus tareas</span><span class="label" id="nTareas"></span></summary><ul class="fl" id="tareas"></ul></details>
+      <details class="fold"><summary><span>Para hablar con</span><span class="label" id="nHablar"></span></summary><ul class="fl" id="hablar"></ul></details>
+      <details class="fold"><summary><span>Equipo · pendientes del buzón</span><span class="label" id="nEquipo"></span></summary><div id="equipo"></div></details>
+      <details class="fold"><summary><span id="cierreLine">Hoy</span><span class="label">ver</span></summary><ul class="fl" id="cierre"></ul></details>
+    </div>
+  </div>
+
+  <div id="per" role="tabpanel" aria-labelledby="tabPer" class="panel" hidden>
+    <section><div class="shead"><h2>Pendiente</h2><span class="label" id="nPer"></span></div><ul class="fl" id="perList"></ul></section>
+    <section><div class="shead"><h2>Ideas</h2><span class="label" id="nPerIdeas"></span></div><ul class="fl" id="perIdeas"></ul></section>
+    <details class="fold"><summary><span id="perCierre">Hoy</span><span class="label">ver</span></summary><ul class="fl" id="perCerradas"></ul></details>
+  </div>
+
+  <p class="foot">Se alimenta de tu Libreta, del Informe Diario de Dirección, de las revisiones automáticas, de tu Gmail y de tu calendario. <button class="salir" id="btnSalir">Cerrar sesión</button></p>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="editor" role="dialog" aria-labelledby="edTitle">
+    <h3 id="edTitle">Editar</h3>
+    <div class="f"><label for="edTitulo">Título</label><input id="edTitulo" type="text"></div>
+    <div class="f2">
+      <div class="f"><label for="edTipo">Tipo</label>
+        <select id="edTipo"><option value="tarea">Tarea</option><option value="seguimiento">Encargo / espero de otro</option><option value="hablar">Hablar con</option><option value="pedido">Pedido</option><option value="vencimiento">Vencimiento</option><option value="idea">Idea</option></select></div>
+      <div class="f"><label for="edAmbito">Ámbito</label><select id="edAmbito"><option value="cng">CNG</option><option value="personal">Personal</option></select></div>
+      <div class="f"><label for="edPrio">Prioridad</label><select id="edPrio"><option value="urgente">Urgente</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baja">Baja</option></select></div>
+      <div class="f"><label for="edFecha">Fecha límite</label><input id="edFecha" type="date"></div>
+      <div class="f"><label for="edPersona">Persona</label><input id="edPersona" type="text"></div>
+      <div class="f"><label for="edPara">Correo de contacto</label><input id="edPara" type="text" placeholder="para los borradores"></div>
+      <div class="f"><label for="edTema">Tema (ideas)</label><input id="edTema" type="text"></div>
+      <div class="f"><label for="edRec">Recurrencia</label><select id="edRec"><option value="">Ninguna</option><option value="semanal">Semanal</option><option value="mensual">Mensual</option><option value="trimestral">Trimestral</option><option value="anual">Anual</option></select></div>
+    </div>
+    <div class="f"><label for="edDetalle">Detalle</label><textarea id="edDetalle" rows="2"></textarea></div>
+    <div class="editor-actions">
+      <button class="btn danger" id="edDelete">Eliminar</button>
+      <div class="acts"><button class="btn ghost" id="edCancel">Cancelar</button><button class="btn go" id="edSave">Guardar</button></div>
+    </div>
+    <p class="status" id="edStatus"></p>
+  </div>
+</div>
+
+<div class="overlay" id="mailOverlay" hidden>
+  <div class="editor" role="dialog" aria-labelledby="mTitle">
+    <h3 id="mTitle">Pedir borrador</h3>
+    <p class="muted" style="margin-bottom:10px">El asistente lo redacta con el contexto del asunto y lo deja en tus borradores de Gmail. Nada se envía sin ti.</p>
+    <div class="f"><label for="mInstr">Qué quieres decir (opcional)</label><textarea id="mInstr" rows="4" placeholder="Por ejemplo: acepta el 24/09 y propón llamar la semana que viene"></textarea></div>
+    <div class="editor-actions"><span></span><div class="acts"><button class="btn ghost" id="mCancel">Cerrar</button><button class="btn go" id="mPedir">Pedir borrador</button></div></div>
+    <p class="status" id="mStatus" aria-live="polite"></p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
