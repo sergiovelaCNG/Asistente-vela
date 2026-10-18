@@ -125,12 +125,14 @@
         (it.detalle ? '<p class="why">' + esc(it.detalle) + '</p>' : '') + '<div class="chips">' + chipsFor(it) + '</div></div>' +
         (it.novedad ? '<p class="nov"><b>Novedad</b>' + esc(it.novedad) + '</p>' : '') +
         (it.recomendacion ? '<p class="reco"><b>Recomiendo</b>' + esc(it.recomendacion) + '</p>' : '') +
-        (pr ? '<p class="pend">Borrador pedido a las ' + hhmm(pr.at) + ': estará en tus borradores de Gmail en menos de una hora.</p>' : '') +
-        '<div class="acts">' + (pr ? '' : '<button class="btn go" data-action="mail">Pedir borrador</button>') +
+        (pr ? '<p class="pend">' + (pr.tipo === 'reenvio' ? 'Reenvío a ' + esc(pr.para_nombre || pr.para || 'info@') + ' pedido a las ' : 'Borrador pedido a las ') + hhmm(pr.at) + ': estará en tus borradores de Gmail en unos segundos.</p>' : '') +
+        '<div class="acts">' + (pr ? '' : '<button class="btn go" data-action="mail">Pedir borrador</button>' + (it.enlace ? '<button class="btn" data-action="fwd">Pasar al equipo</button>' : '')) +
         '<button class="btn" data-action="done">Hecho</button><button class="btn ghost" data-action="later">Mañana</button>' +
         (it.enlace ? '<a class="btn ghost" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
         '<button class="btn ghost" data-action="edit">Editar</button></div></article>';
     }).join('') : '<p class="empty-s">Nada urgente que firmar. Lo demás está en «Tus tareas».</p>';
+    const fallos = state.solicitudes.filter((s) => s.estado === 'error');
+    if (fallos.length) $('#firma').innerHTML = fallos.map((s) => { const it = state.items.find((x) => x.id === s.asunto_id); return '<p class="pend">No pude preparar el ' + (s.tipo === 'reenvio' ? 'reenvío' : 'borrador') + (it ? ' de «' + esc(it.titulo) + '»' : '') + ': ' + esc(s.resultado || 'error') + '</p>'; }).join('') + $('#firma').innerHTML;
   }
   // Agenda: copia del calendario que mantienen las tareas automáticas.
   const isTorneo = (e) => !!e.torneo;
@@ -316,7 +318,7 @@
     else if (t === 'briefings') q = sb.from('briefings').select('*').order('at', { ascending: false }).limit(1);
     else if (t === 'revisiones') q = sb.from('revisiones').select('*').order('at', { ascending: false }).limit(1);
     else if (t === 'libreta') q = sb.from('libreta').select('*').order('at', { ascending: false }).limit(20);
-    else if (t === 'solicitudes') q = sb.from('solicitudes').select('*').eq('estado', 'pendiente');
+    else if (t === 'solicitudes') q = sb.from('solicitudes').select('*').or('estado.eq.pendiente,and(estado.eq.error,hecha_at.gt.' + new Date(Date.now() - 864e5).toISOString() + ')');
     else return;
     const { data, error } = await q;
     if (error) { showBanner('No se pudieron cargar tus datos (' + error.message + '). Comprueba la conexión.', true); return; }
@@ -369,6 +371,7 @@
     else if (a === 'reopen') patch(it, { estado: 'pendiente', hecho_at: null });
     else if (a === 'edit') openEditor(it);
     else if (a === 'mail') openMail(it, 'borrador');
+    else if (a === 'fwd') openFwd(it);
     else if (a === 'nudge') openMail(it, 'recordatorio');
     else if (a === 'later') patch(it, { pospuesto_hasta: ymd(addDays(today(), 1)) });
   });
@@ -458,6 +461,7 @@
     $('#edPrio').value = it.prioridad || 'normal'; $('#edFecha').value = it.fecha_limite || ''; $('#edPersona').value = it.persona || ''; $('#edPara').value = it.para || '';
     $('#edTema').value = it.tema || ''; $('#edRec').value = it.recurrencia || ''; $('#edDetalle').value = it.detalle || ''; $('#edStatus').textContent = '';
     $('#edDelete').textContent = 'Eliminar'; $('#edDelete').dataset.armed = '';
+    $('#edFwd').hidden = !it.enlace || !open(it) || !!pendingRequest(it);
     $('#overlay').hidden = false;
   }
   function closeEditor() { $('#overlay').hidden = true; state.editing = null; }
@@ -502,7 +506,34 @@
     if (error) { $('#mStatus').textContent = 'No se pudo pedir (' + error.message + ').'; $('#mPedir').disabled = false; return; }
     closeMail(); await loadTable('solicitudes'); renderAll();
   });
-  document.addEventListener('keydown', (ev) => { if (ev.key !== 'Escape') return; if (!$('#mailOverlay').hidden) closeMail(); else if (!$('#overlay').hidden) closeEditor(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key !== 'Escape') return; if (!$('#fwdOverlay').hidden) closeFwd(); else if (!$('#mailOverlay').hidden) closeMail(); else if (!$('#overlay').hidden) closeEditor(); });
+
+  // ---------- pasar al equipo (V1 · 18/10/2026) ----------
+  // Prepara en Gmail un borrador de reenvío del correo original con tu nota; nunca se envía solo. Por defecto a info@cngolf.es.
+  function openFwd(it) {
+    state.fwdItem = it;
+    $('#fTitle').textContent = 'Pasar al equipo · ' + (it.titulo || '');
+    $('#fPara').value = 'info@cngolf.es'; $('#fOtroWrap').hidden = true; $('#fOtro').value = '';
+    $('#fNota').value = ''; $('#fStatus').textContent = ''; $('#fPedir').disabled = false;
+    if (!$('#overlay').hidden) closeEditor();
+    $('#fwdOverlay').hidden = false;
+  }
+  function closeFwd() { $('#fwdOverlay').hidden = true; state.fwdItem = null; }
+  $('#edFwd').addEventListener('click', () => { if (state.editing) openFwd(state.editing); });
+  $('#fPara').addEventListener('change', () => { $('#fOtroWrap').hidden = $('#fPara').value !== 'otro'; });
+  $('#fCancel').addEventListener('click', closeFwd);
+  $('#fwdOverlay').addEventListener('click', (e) => { if (e.target === $('#fwdOverlay')) closeFwd(); });
+  $('#fPedir').addEventListener('click', async () => {
+    const it = state.fwdItem; if (!it) return;
+    const sel = $('#fPara'); const otro = sel.value === 'otro';
+    const para = (otro ? $('#fOtro').value : sel.value).trim().toLowerCase();
+    if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(para)) { $('#fStatus').textContent = 'Escribe un correo válido.'; return; }
+    const nombre = otro ? para : sel.options[sel.selectedIndex].dataset.nombre || para;
+    $('#fPedir').disabled = true;
+    const { error } = await sb.from('solicitudes').insert({ tipo: 'reenvio', asunto_id: it.id, para, para_nombre: nombre, instrucciones: $('#fNota').value.trim() || null });
+    if (error) { $('#fStatus').textContent = 'No se pudo pedir (' + error.message + ').'; $('#fPedir').disabled = false; return; }
+    closeFwd(); await loadTable('solicitudes'); renderAll();
+  });
 
   // ---------- arranque ----------
   async function showFor(session) {

@@ -305,10 +305,30 @@ body { padding-top: env(safe-area-inset-top, 0px); }
     </div>
     <div class="f"><label for="edDetalle">Detalle</label><textarea id="edDetalle" rows="2"></textarea></div>
     <div class="editor-actions">
-      <button class="btn danger" id="edDelete">Eliminar</button>
+      <div class="acts"><button class="btn danger" id="edDelete">Eliminar</button><button class="btn" id="edFwd" hidden>Pasar al equipo</button></div>
       <div class="acts"><button class="btn ghost" id="edCancel">Cancelar</button><button class="btn go" id="edSave">Guardar</button></div>
     </div>
     <p class="status" id="edStatus"></p>
+  </div>
+</div>
+
+<div class="overlay" id="fwdOverlay" hidden>
+  <div class="editor" role="dialog" aria-labelledby="fTitle">
+    <h3 id="fTitle">Pasar al equipo</h3>
+    <p class="muted" style="margin-bottom:10px">Reenvía el correo original completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. El asunto pasa a «Delegado y en espera».</p>
+    <div class="f"><label for="fPara">A quién</label>
+      <select id="fPara">
+        <option value="info@cngolf.es" data-nombre="info@ (todo el equipo)">info@cngolf.es · todo el equipo</option>
+        <option value="jessica.vallejo@cngolf.es" data-nombre="Jessica">Jessica Vallejo · reservas, escuela, hándicap, campo</option>
+        <option value="monica.zabalburu@cngolf.es" data-nombre="Mónica">Mónica Zabalburu · extranjeros</option>
+        <option value="alberto.cobos@cngolf.es" data-nombre="Alberto Cobos">Alberto Cobos</option>
+        <option value="judith.capsir@cngolf.es" data-nombre="Judith Capsir">Judith Capsir</option>
+        <option value="otro">Otra dirección…</option>
+      </select></div>
+    <div class="f" id="fOtroWrap" hidden><label for="fOtro">Correo</label><input id="fOtro" type="email" inputmode="email" autocomplete="off" placeholder="nombre@cngolf.es"></div>
+    <div class="f"><label for="fNota">Qué tienen que hacer</label><textarea id="fNota" rows="3" placeholder="Por ejemplo: llamadle hoy y confirmad la reserva"></textarea></div>
+    <div class="editor-actions"><span></span><div class="acts"><button class="btn ghost" id="fCancel">Cerrar</button><button class="btn go" id="fPedir">Preparar reenvío</button></div></div>
+    <p class="status" id="fStatus" aria-live="polite"></p>
   </div>
 </div>
 
