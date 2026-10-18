@@ -172,6 +172,7 @@ details.fold[open] > summary .label::after { content: " ▾"; }
 .fl li .r { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .fl li.blk .t { color: var(--muted); }
 .fl li.plain { grid-template-columns: minmax(0, 1fr) auto; }
+.fl li.dia { border-top: none; padding: 12px 0 2px; }
 
 .overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 20;
   padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); }
@@ -264,7 +265,7 @@ body { padding-top: env(safe-area-inset-top, 0px); }
       <ul class="radar" id="radar"></ul>
     </section>
     <section aria-labelledby="h-lib">
-      <div class="shead"><h2 id="h-lib">Libreta</h2><span class="label">lo que soltaste y dónde fue</span></div>
+      <div class="shead"><h2 id="h-lib">Libreta</h2><span class="label">lo soltado esta semana que sigue abierto</span></div>
       <div id="libreta"></div>
       <div id="temas"></div>
     </section>
@@ -273,6 +274,7 @@ body { padding-top: env(safe-area-inset-top, 0px); }
       <details class="fold"><summary><span>Para hablar con</span><span class="label" id="nHablar"></span></summary><ul class="fl" id="hablar"></ul></details>
       <details class="fold"><summary><span>Equipo · pendientes del buzón</span><span class="label" id="nEquipo"></span></summary><div id="equipo"></div></details>
       <details class="fold"><summary><span id="cierreLine">Hoy</span><span class="label">ver</span></summary><ul class="fl" id="cierre"></ul></details>
+      <details class="fold"><summary><span>Hecho · últimos 14 días</span><span class="label" id="nHecho"></span></summary><ul class="fl" id="hecho"></ul></details>
     </div>
   </div>
 
@@ -280,6 +282,7 @@ body { padding-top: env(safe-area-inset-top, 0px); }
     <section><div class="shead"><h2>Pendiente</h2><span class="label" id="nPer"></span></div><ul class="fl" id="perList"></ul></section>
     <section><div class="shead"><h2>Ideas</h2><span class="label" id="nPerIdeas"></span></div><ul class="fl" id="perIdeas"></ul></section>
     <details class="fold"><summary><span id="perCierre">Hoy</span><span class="label">ver</span></summary><ul class="fl" id="perCerradas"></ul></details>
+    <details class="fold"><summary><span>Hecho · últimos 14 días</span><span class="label" id="nPerHecho"></span></summary><ul class="fl" id="perHecho"></ul></details>
   </div>
 
   <p class="foot">Se alimenta de tu Libreta, del Informe Diario de Dirección, de las revisiones automáticas, de tu Gmail y de tu calendario. <button class="salir" id="btnSalir">Cerrar sesión</button></p>

@@ -227,19 +227,47 @@
       : '<li><span class="d">—</span><span class="n muted">Nada en los próximos 14 días.</span></li>';
   }
   function renderLibreta() {
-    const list = state.libreta.slice(0, 8);
-    $('#libreta').innerHTML = list.length ? list.map((l) => {
-      const outs = Array.isArray(l.salidas) ? l.salidas : [];
-      const meta = (l.at ? (localDay(l.at) === ymd(today()) ? 'hoy ' : fmtShort(localDay(l.at)) + ' · ') + hhmm(l.at) : '') + (l.estado !== 'ordenada' ? ' · pendiente de ordenar (menos de una hora)' : '');
-      return '<div class="entry"><p class="raw">«' + esc(l.texto) + '»</p><span class="meta">' + esc(meta) + '</span>' +
-        (outs.length ? '<ul class="outs">' + outs.map((o) => '<li><span class="kind' + (o.tipo === 'idea' ? ' idea' : '') + '">' + esc(KIND[o.tipo] || o.tipo) + (o.ambito === 'personal' ? ' · personal' : '') + '</span><span>' + esc(o.titulo) +
-          (o.persona ? ' · ' + esc(o.persona) : '') + (o.fecha_limite ? ' · ' + esc(relDate(o.fecha_limite)) : '') + (o.relacionado ? ' <span class="link">↳ ' + (o.sumado ? 'añadido a' : 'con') + ' «' + esc(o.relacionado) + '»</span>' : '') + (o.tema ? ' <span class="link">↳ tema: ' + esc(o.tema) + '</span>' : '') + '</span></li>').join('') + '</ul>' : '') + '</div>';
-    }).join('') : '<p class="empty-s">Aún no has soltado nada. Lo que sueltes arriba aparecerá aquí con lo que he hecho con ello.</p>';
+    // Libreta V2 (18/10/2026 · Sr. Vela): sin párrafos dictados y sin lo ya hecho. Solo lo soltado en los últimos 7 días que sigue abierto
+    // (las ideas van en «Ideas por tema»), más las notas que aún se están ordenando para que conste que han llegado.
+    const desde = ymd(addDays(today(), -7)); const vistos = new Set(); const filas = []; const ordenando = [];
+    state.libreta.forEach((l) => {
+      if (l.estado !== 'ordenada') { ordenando.push(l); return; }
+      if (!l.at || localDay(l.at) < desde) return;
+      (Array.isArray(l.salidas) ? l.salidas : []).forEach((o) => {
+        if (!o || !o.item_id || vistos.has(o.item_id) || o.tipo === 'idea') return;
+        const it = state.items.find((x) => x.id === o.item_id);
+        if (!it || !open(it) || it.tipo === 'idea') return;
+        vistos.add(it.id); filas.push({ it, o, at: l.at });
+      });
+    });
+    const cuando = (at) => localDay(at) === ymd(today()) ? 'hoy' : fmtShort(localDay(at));
+    const htmlOrd = ordenando.map((l) => { const t = String(l.texto || '').replace(/\s+/g, ' ').trim(); return '<li><span class="kind">Ordenando</span><span class="muted">' + esc(t.length > 70 ? t.slice(0, 70) + '…' : t) + '</span></li>'; }).join('');
+    const htmlFil = filas.map(({ it, o, at }) => '<li data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como hecha"></button><span class="t" data-action="edit"><span class="kind">' + esc(KIND[it.tipo] || it.tipo || 'Tarea') + '</span> ' + esc(o.sumado ? (o.relacionado || it.titulo) : it.titulo) +
+      (it.persona ? ' · ' + esc(it.persona) : '') + (o.sumado ? ' <span class="link">· añadido</span>' : '') + '</span><span class="r">' + esc(it.fecha_limite ? relDate(it.fecha_limite) : cuando(at)) + '</span></li>').join('');
+    $('#libreta').innerHTML = (htmlOrd ? '<ul class="outs">' + htmlOrd + '</ul>' : '') + (htmlFil ? '<ul class="fl">' + htmlFil + '</ul>' :
+      (htmlOrd ? '' : '<p class="empty-s">Nada pendiente de lo que has soltado esta semana.</p>'));
     const ideas = cng().filter((it) => open(it) && it.tipo === 'idea'); const by = {};
     ideas.forEach((it) => { const t = it.tema || 'Sin tema'; (by[t] = by[t] || []).push(it); });
     const keys = Object.keys(by).sort();
     $('#temas').innerHTML = keys.length ? '<h3 class="label" style="margin-top:8px">Ideas por tema</h3><div class="temas">' + keys.map((k) =>
       '<div class="tema"><h4>' + esc(k) + ' <span class="muted" style="font-weight:400">· ' + by[k].length + '</span></h4><ul>' + by[k].map((it) => '<li data-id="' + esc(it.id) + '"><span data-action="edit" style="cursor:pointer">' + esc(it.titulo) + '</span></li>').join('') + '</ul></div>').join('') + '</div>' : '';
+  }
+  // Hecho V1 (18/10/2026 · Sr. Vela): pestaña al final con lo ya hecho de los últimos 14 días, agrupado por día, con opción de reabrir.
+  function hechoHtml(lista) {
+    const desde = ymd(addDays(today(), -14)); const hoy = ymd(today()); const ayer = ymd(addDays(today(), -1));
+    const hechos = lista.filter((it) => it.estado === 'hecho' && (it.hecho_at || it.updated_at) && localDay(it.hecho_at || it.updated_at) >= desde)
+      .sort((a, b) => String(b.hecho_at || b.updated_at).localeCompare(String(a.hecho_at || a.updated_at)));
+    let dia = ''; let html = '';
+    hechos.forEach((it) => {
+      const at = it.hecho_at || it.updated_at; const d = localDay(at);
+      if (d !== dia) { dia = d; html += '<li class="plain dia"><span class="label">' + esc(d === hoy ? 'Hoy' : d === ayer ? 'Ayer' : fmtShort(d)) + '</span><span></span></li>'; }
+      html += '<li class="plain" data-id="' + esc(it.id) + '"><span>✓ ' + esc(it.titulo) + (it.persona ? ' <span class="muted">· ' + esc(it.persona) + '</span>' : '') + '</span><span class="r">' + hhmm(at) + ' <button class="mini" data-action="reopen">reabrir</button></span></li>';
+    });
+    return { n: hechos.length, html: html || '<li class="plain"><span class="muted">Nada hecho en las dos últimas semanas.</span><span></span></li>' };
+  }
+  function renderHecho() {
+    const c = hechoHtml(cng()); $('#nHecho').textContent = c.n || ''; $('#hecho').innerHTML = c.html;
+    const p = hechoHtml(per()); $('#nPerHecho').textContent = p.n || ''; $('#perHecho').innerHTML = p.html;
   }
   function rowLi(it, right) {
     const b = blocker(it);
@@ -275,7 +303,7 @@
     $('#perCierre').textContent = 'Hoy: ' + (pc.length === 1 ? '1 cerrada' : pc.length + ' cerradas');
     $('#perCerradas').innerHTML = pc.length ? pc.map((it) => '<li class="plain"><span>✓ ' + esc(it.titulo) + '</span><span class="r">' + hhmm(it.hecho_at) + '</span></li>').join('') : '<li class="plain"><span class="muted">Nada cerrado todavía hoy.</span><span></span></li>';
   }
-  function renderAll() { header(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderRadar(); renderLibreta(); renderFolds(); }
+  function renderAll() { header(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
 
   // ---------- datos ----------
   function showBanner(msg, err) { const b = $('#banner'); b.textContent = msg; b.className = 'banner' + (err ? ' err' : ''); b.hidden = !msg; }
@@ -338,6 +366,7 @@
     const it = state.items.find((x) => x.id === host.dataset.id); if (!it) return;
     const a = btn.dataset.action;
     if (a === 'done') markDone(it);
+    else if (a === 'reopen') patch(it, { estado: 'pendiente', hecho_at: null });
     else if (a === 'edit') openEditor(it);
     else if (a === 'mail') openMail(it, 'borrador');
     else if (a === 'nudge') openMail(it, 'recordatorio');
