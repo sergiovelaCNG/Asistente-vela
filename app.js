@@ -366,7 +366,20 @@
     el.textContent = viejo ? 'Ojo: los datos del equipo son de ' + (hoy ? 'las ' : fmtShort(localDay(r.at)) + ', ') + hhmm(r.at) + '. La última comprobación no ha llegado.'
       : 'Equipo comprobado ' + (hoy ? 'a las ' + hhmm(r.at) : 'el ' + fmtShort(localDay(r.at))) + '.';
   }
+  // P71 (22/10/2026): reservas de hoy por unidad de negocio, en vivo desde GolfManager (n8n D4 cada 30 min → negocio_vivo).
+  function renderReservas() {
+    const el = $('#bizres'); const v = state.vivo; const d = v && v.datos; const u = d && d.unidades;
+    if (!u || !u.hoy || d.fecha !== ymd(today())) { el.hidden = true; return; }
+    const ETQ = { 'Escuela': ['Escuela', 'clases', 'alumnos'], 'Gourmet Experience': ['Gourmet', 'bahías', 'personas'], 'Fitting': ['Fitting', 'sesiones', null] };
+    const areas = Object.keys(u.hoy).sort((a, b) => (u.hoy[b].reservas || 0) - (u.hoy[a].reservas || 0));
+    const celda = (a) => { const x = u.hoy[a]; const e = ETQ[a] || [a, 'reservas', null];
+      return '<div><b>' + esc(String(x.reservas)) + '</b><span>' + esc(e[0] + ' · ' + e[1] + (e[2] && x.personas > 0 ? ' · ' + x.personas + ' ' + e[2] : '')) + '</span></div>'; };
+    const golf = areas.some((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a)) ? '' : '<div><b>—</b><span>Golf · hasta el 02/11</span></div>';
+    el.hidden = false;
+    el.innerHTML = '<p class="bizcap">Reservas hoy por unidad · GolfManager ' + esc(hhmm(d.generado)) + (u.completo ? '' : ' · lectura incompleta') + '</p><div class="biz">' + areas.map(celda).join('') + golf + '</div>';
+  }
   function renderBiz() {
+    renderReservas();
     const el = $('#biz'); const s = state.sync; const n = s && s.datos && s.datos.negocio;
     if (!n || localDay(s.at) !== ymd(today())) { el.hidden = true; return; }
     const cells = [];
@@ -374,7 +387,6 @@
     if (n.ocupacion_hoy != null) cells.push(['Ocupación hoy', n.ocupacion_hoy + ' %']);
     if (eur(n.devengado_ayer)) cells.push(['Devengado ayer', eur(n.devengado_ayer)]);
     if (eur(n.cobrado_ayer)) cells.push(['Cobrado ayer', eur(n.cobrado_ayer)]);
-    if (n.reservas_hoy != null) cells.push(['Reservas hoy', String(n.reservas_hoy)]);
     if (!cells.length) { el.hidden = true; return; }
     el.hidden = false;
     el.innerHTML = cells.slice(0, 4).map(([k, v]) => '<div><b>' + esc(v) + '</b><span>' + esc(k) + '</span></div>').join('');
@@ -411,6 +423,7 @@
     else if (t === 'libreta') q = sb.from('libreta').select('*').order('at', { ascending: false }).limit(20);
     else if (t === 'sync') q = sb.from('sync').select('*').order('id', { ascending: false }).limit(1);
     else if (t === 'cierres') q = sb.from('cierres').select('*').gte('fecha', ymd(addDays(today(), -7))).order('fecha', { ascending: false }).limit(7);
+    else if (t === 'negocio_vivo') q = sb.from('negocio_vivo').select('*').eq('id', 'reservas').limit(1);
     else if (t === 'solicitudes') q = sb.from('solicitudes').select('*').or('estado.eq.pendiente,and(estado.eq.error,hecha_at.gt.' + new Date(Date.now() - 864e5).toISOString() + ')');
     else return;
     const { data, error } = await q;
@@ -423,9 +436,10 @@
     else if (t === 'libreta') state.libreta = data;
     else if (t === 'solicitudes') state.solicitudes = data;
     else if (t === 'sync') state.sync = data[0] || null;
+    else if (t === 'negocio_vivo') state.vivo = data[0] || null;
     else if (t === 'cierres') { const s = data.find((c) => c.datos && c.datos.semana); state.semana = s ? { fecha: s.fecha, ...s.datos.semana } : null; }
   }
-  const TABLES = ['asuntos', 'agenda', 'prep', 'briefings', 'revisiones', 'libreta', 'solicitudes', 'sync', 'cierres'];
+  const TABLES = ['asuntos', 'agenda', 'prep', 'briefings', 'revisiones', 'libreta', 'solicitudes', 'sync', 'cierres', 'negocio_vivo'];
   async function loadAll() { await Promise.all(TABLES.map(loadTable)); state.loaded = true; renderAll(); }
   let channel = null, reloadTimer = {};
   function subscribe() {
