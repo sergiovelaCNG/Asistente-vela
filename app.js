@@ -9,7 +9,7 @@
   };
   const $ = (s, r) => (r || document).querySelector(s);
   const sb = window.supabase.createClient(CONFIG.url, CONFIG.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-  const state = { items: [], view: 'cng', events: [], prep: {}, briefing: null, revision: null, libreta: [], solicitudes: [], editing: null, busy: false, mailItem: null, loaded: false };
+  const state = { items: [], view: 'cng', events: [], prep: {}, briefing: null, revision: null, libreta: [], solicitudes: [], sync: null, semana: null, editing: null, busy: false, mailItem: null, loaded: false };
   const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   const DIAS3 = ['dom','lun','mar','mié','jue','vie','sáb'];
   const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -62,9 +62,9 @@
   // ---------- cabecera y pestañas ----------
   function header() {
     const t = new Date();
-    $('#dateLine').textContent = 'Despacho · ' + DIAS[t.getDay()] + ' ' + t.getDate() + ' de ' + MESES[t.getMonth()];
+    $('#dateLine').textContent = DIAS[t.getDay()].replace(/^./, (c) => c.toUpperCase()) + ', ' + t.getDate() + ' de ' + MESES[t.getMonth()];
     const h = t.getHours();
-    $('#greet').innerHTML = (h < 13 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches') + ', <em>Sergio</em>';
+    $('#greet').innerHTML = (h < 13 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches') + ', Sergio';
   }
   try { const v = localStorage.getItem('dp.view'); if (v === 'personal' || v === 'cng') state.view = v; } catch (e) {}
   function applyView() {
@@ -116,7 +116,7 @@
   }
   function renderFirma() {
     const list = firmaList();
-    $('#firmaN').textContent = list.length ? list.length + ' · por urgencia' : '';
+    $('#firmaN').textContent = list.length ? 'por urgencia' : '';
     $('#firma').innerHTML = list.length ? list.map((it, i) => {
       const n = daysUntil(it.fecha_limite); const urg = it.prioridad === 'urgente' || (n !== null && n <= 0);
       const pr = pendingRequest(it);
@@ -168,7 +168,7 @@
   function renderAgenda() {
     const el = $('#agenda');
     const last = state.events.reduce((m, e) => (e.actualizado_at > m ? e.actualizado_at : m), '');
-    $('#agendaSub').textContent = last ? 'copia de las ' + hhmm(last) : '';
+    $('#agendaSub').textContent = last ? 'actualizada ' + hhmm(last) : '';
     const days = agendaDays();
     if (!days.length) { el.innerHTML = '<p class="empty-s">' + (state.loaded ? 'Sin reuniones ni torneos en los próximos días.' : 'Cargando la agenda…') + '</p>'; return; }
     el.innerHTML = days.map(({ d, ds, evs }) => {
@@ -219,13 +219,13 @@
       const a = e.dia, b = e.dia_fin || e.dia; if (b < hoy || a > fin) return;
       const key = a + e.titulo; if (seen[key]) return; seen[key] = 1;
       const tn = torneoName(e);
-      rows.push({ d: a, label: a === b ? fmtShort(a) : parseYmd(a).getDate() + '–' + parseYmd(b).getDate() + ' ' + MES3[parseYmd(b).getMonth()], n: (tn.codigo ? tn.codigo + ' · ' : '') + tn.nombre, k: CODIGOS[tn.codigo] || 'torneo', lim: false });
+      rows.push({ d: a, label: a === b ? fmtShort(a) : parseYmd(a).getDate() + '–' + parseYmd(b).getDate() + ' ' + MES3[parseYmd(b).getMonth()], n: (tn.codigo ? tn.codigo + ' · ' : '') + tn.nombre, k: CODIGOS[tn.codigo] || 'torneo', cls: 'tor' });
     });
     cng().filter((it) => open(it) && it.fecha_limite && it.fecha_limite <= fin && it.tipo !== 'idea').forEach((it) => {
-      rows.push({ d: it.fecha_limite, label: daysUntil(it.fecha_limite) < 0 ? 'vencido' : relDate(it.fecha_limite), n: it.titulo, k: it.tipo === 'vencimiento' ? 'vencimiento' : 'plazo tuyo', lim: true });
+      rows.push({ d: it.fecha_limite, label: daysUntil(it.fecha_limite) < 0 ? 'vencido' : relDate(it.fecha_limite), n: it.titulo, k: it.tipo === 'vencimiento' ? 'vencimiento' : 'tuyo', cls: 'mine' + (daysUntil(it.fecha_limite) < 0 ? ' lim' : '') });
     });
     rows.sort((a, b) => a.d.localeCompare(b.d));
-    $('#radar').innerHTML = rows.length ? rows.map((r) => '<li class="' + (r.lim ? 'lim' : '') + '"><span class="d">' + esc(r.label) + '</span><span class="n">' + esc(r.n) + '</span><span class="k">' + esc(r.k) + '</span></li>').join('')
+    $('#radar').innerHTML = rows.length ? rows.map((r) => '<li class="' + r.cls + '"><span class="d">' + esc(r.label) + '</span><span class="n">' + esc(r.n) + '</span><span class="k">' + esc(r.k) + '</span></li>').join('')
       : '<li><span class="d">—</span><span class="n muted">Nada en los próximos 14 días.</span></li>';
   }
   function renderLibreta() {
@@ -263,7 +263,7 @@
     hechos.forEach((it) => {
       const at = it.hecho_at || it.updated_at; const d = localDay(at);
       if (d !== dia) { dia = d; html += '<li class="plain dia"><span class="label">' + esc(d === hoy ? 'Hoy' : d === ayer ? 'Ayer' : fmtShort(d)) + '</span><span></span></li>'; }
-      html += '<li class="plain" data-id="' + esc(it.id) + '"><span>✓ ' + esc(it.titulo) + (it.persona ? ' <span class="muted">· ' + esc(it.persona) + '</span>' : '') + '</span><span class="r">' + hhmm(at) + ' <button class="mini" data-action="reopen">reabrir</button></span></li>';
+      html += '<li class="plain" data-id="' + esc(it.id) + '"><span>✓ ' + esc(it.titulo) + (it.extra && it.extra.auto_cierre ? ' <span class="auto">se cerró solo: ' + esc(it.extra.auto_cierre.motivo || '') + '</span>' : '') + (it.persona ? ' <span class="muted">· ' + esc(it.persona) + '</span>' : '') + '</span><span class="r">' + hhmm(at) + ' <button class="mini" data-action="reopen">reabrir</button></span></li>';
     });
     return { n: hechos.length, html: html || '<li class="plain"><span class="muted">Nada hecho en las dos últimas semanas.</span><span></span></li>' };
   }
@@ -283,11 +283,7 @@
     const hablar = cng().filter((it) => open(it) && it.tipo === 'hablar').sort((a, b) => norm(a.persona).localeCompare(norm(b.persona)));
     $('#nHablar').textContent = hablar.length || '';
     $('#hablar').innerHTML = hablar.length ? hablar.map((it) => rowLi(it, it.persona || '')).join('') : '<li class="plain"><span class="muted">Nada pendiente de hablar con nadie.</span><span></span></li>';
-    const r = state.revision; const pend = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : [];
-    $('#nEquipo').textContent = r ? pend.length : '';
-    $('#equipo').innerHTML = r ? '<p class="note" style="padding:4px 0 8px">' + esc(r.resumen || '') + (r.at ? ' · revisión de las ' + hhmm(r.at) : '') + '</p>' + (pend.length ? '<ul class="fl">' + pend.map((p) =>
-      '<li class="plain"><span>' + esc(p.asunto || '') + (p.enlace ? ' <a href="' + esc(p.enlace) + '" target="_blank" rel="noopener">abrir</a>' : '') + '</span><span class="r">' + esc((p.bandeja || '') + (p.dias != null ? ' · ' + p.dias + ' d' : '')) + '</span></li>').join('') + '</ul>' : '')
-      : '<p class="note" style="padding:4px 0 8px">Aún sin datos: el informe y las revisiones lo rellenan.</p>';
+    const r = state.revision;
     const hoy = ymd(today());
     const mios = cng().filter((it) => it.estado === 'hecho' && localDay(it.hecho_at) === hoy).sort((a, b) => String(a.hecho_at).localeCompare(String(b.hecho_at)));
     const rv = r && localDay(r.at) === hoy ? r : null;
@@ -305,7 +301,93 @@
     $('#perCierre').textContent = 'Hoy: ' + (pc.length === 1 ? '1 cerrada' : pc.length + ' cerradas');
     $('#perCerradas').innerHTML = pc.length ? pc.map((it) => '<li class="plain"><span>✓ ' + esc(it.titulo) + '</span><span class="r">' + hhmm(it.hecho_at) + '</span></li>').join('') : '<li class="plain"><span class="muted">Nada cerrado todavía hoy.</span><span></span></li>';
   }
-  function renderAll() { header(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
+  // Equipo · buzón V2 (22/10/2026 · Sr. Vela): sección visible, ordenada por antigüedad, con estado y bandeja; resueltos plegados.
+  function eqEstado(p) {
+    const s = norm(p.estado || '');
+    if (s.includes('pregunta')) return { cls: 'q', txt: 'espera 2.ª respuesta' };
+    if (s.includes('parado')) return { cls: 'x', txt: 'parado' };
+    return { cls: '', txt: 'sin respuesta' };
+  }
+  function eqAsunto(p) { return String(p.asunto || '').replace(/\s*\((parado|sección)[^)]*\)\s*$/i, '').trim(); }
+  function renderEquipo() {
+    const r = state.revision; const el = $('#equipo');
+    if (!r) { $('#nEquipo').textContent = ''; el.innerHTML = '<p class="empty-s">Aún sin datos: el informe y las revisiones lo rellenan.</p>'; return; }
+    const pend = (Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : []).slice()
+      .sort((a, b) => (b.dias ?? -1) - (a.dias ?? -1));
+    const res = Array.isArray(r.resueltos_equipo) ? r.resueltos_equipo : [];
+    const cuando = r.at ? (localDay(r.at) === ymd(today()) ? 'hoy ' : fmtShort(localDay(r.at)) + ' ') + hhmm(r.at) : '';
+    $('#nEquipo').textContent = (pend.length ? pend.length + (pend.length === 1 ? ' pendiente' : ' pendientes') : 'al día') + (cuando ? ', revisado ' + cuando : '');
+    const porB = {}; pend.forEach((p) => { const k = p.bandeja || 'Sin bandeja'; porB[k] = (porB[k] || 0) + 1; });
+    const sum = Object.keys(porB).sort((a, b) => porB[b] - porB[a]).map((k) => '<span class="chip' + (k === 'Extranjeros' ? ' flag' : '') + '">' + esc(k) + ' ' + porB[k] + '</span>').join('');
+    const rows = pend.map((p) => {
+      const d = typeof p.dias === 'number' ? p.dias : null; const st = eqEstado(p);
+      const age = d === null ? '—' : d === 0 ? 'hoy' : d + '<small>d</small>';
+      const link = p.enlace ? '<a href="' + esc(p.enlace) + '" target="_blank" rel="noopener">' + esc(eqAsunto(p)) + '</a>' : esc(eqAsunto(p));
+      const extra = /pasada|cerrar/i.test(p.estado || '') ? '<span>fecha pasada: responder o cerrar</span>' : '';
+      return '<li><span class="age' + (d >= 7 ? ' hot' : d >= 3 ? ' warm' : '') + '">' + age + '</span><span class="asu">' + link + '</span>' +
+        (p.enlace ? '<a class="mini go" href="' + esc(p.enlace) + '" target="_blank" rel="noopener">Abrir</a>' : '<span></span>') +
+        '<span class="sub"><span class="st ' + st.cls + '">' + esc(st.txt) + '</span><span>' + esc(p.bandeja || '') + '</span>' + extra + '</span></li>';
+    }).join('');
+    const resHtml = res.length ? '<details class="res"><summary>' + res.length + (res.length === 1 ? ' resuelto' : ' resueltos') + ' desde el informe</summary><ul>' +
+      res.map((x) => '<li><span class="t">' + (x.enlace ? '<a href="' + esc(x.enlace) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(x.asunto || '') + '</a>' : esc(x.asunto || '')) + '</span><span class="r">' + esc(x.quien || '') + '</span></li>').join('') + '</ul></details>' : '';
+    el.innerHTML = (pend.length
+      ? '<div class="eqsum">' + sum + '</div><ul class="eqlist">' + rows + '</ul>'
+      : '<div class="eqok">✓ El equipo está al día: ningún cliente esperando respuesta.</div>') +
+      resHtml + '<p class="eqmeta">Comprobado en Gmail ' + esc(cuando) + '. Se actualiza cada 3 horas.</p>';
+  }
+  // Tarjeta de juego (V2 22/10/2026): las cuatro cifras del día; cada casilla lleva a su sección.
+  function renderScore() {
+    const hoy = ymd(today()), fin = ymd(addDays(today(), 14)); const now = new Date();
+    const firma = firmaList().length;
+    const reun = state.events.filter((e) => e.dia === hoy && !e.todo_el_dia && !isTorneo(e) && (!e.fin || new Date(e.fin) > now)).length;
+    const r = state.revision; const eq = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo.length : null;
+    const tor = new Set(state.events.filter((e) => isTorneo(e) && (e.dia_fin || e.dia) >= hoy && e.dia <= fin).map((e) => e.dia + e.titulo)).size;
+    const cell = (href, n, txt, hot) => '<a href="' + href + '"' + (hot ? ' class="hot"' : '') + '><b>' + (n === null ? '–' : n) + '</b><span>' + txt + '</span></a>';
+    $('#score').innerHTML = cell('#h-firma', firma, 'a tu firma', firma > 0) + cell('#h-agenda', reun, reun === 1 ? 'reunión hoy' : 'reuniones hoy') +
+      cell('#h-eq', eq, 'equipo pendiente', eq !== null && eq > 5) + cell('#h-radar', tor, tor === 1 ? 'torneo en 14 d' : 'torneos en 14 d');
+  }
+  // V2.1 (22/10/2026): frescura de los datos del equipo, cifras de negocio y cierre de semana.
+  const eur = (n) => typeof n === 'number' && isFinite(n) ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €' : null;
+  function renderFresh() {
+    const el = $('#fresh'); const r = state.revision; const h = new Date().getHours();
+    if (!r || !r.at) { el.textContent = state.loaded ? 'Sin revisión del equipo todavía hoy.' : ''; el.className = 'fresh'; return; }
+    const mins = (Date.now() - new Date(r.at).getTime()) / 60000; const hoy = localDay(r.at) === ymd(today());
+    const viejo = h >= 8 && h < 23 && mins > 210;
+    el.className = 'fresh' + (viejo ? ' late' : '');
+    el.textContent = viejo ? 'Ojo: los datos del equipo son de ' + (hoy ? 'las ' : fmtShort(localDay(r.at)) + ', ') + hhmm(r.at) + '. La última comprobación no ha llegado.'
+      : 'Equipo comprobado ' + (hoy ? 'a las ' + hhmm(r.at) : 'el ' + fmtShort(localDay(r.at))) + '.';
+  }
+  function renderBiz() {
+    const el = $('#biz'); const s = state.sync; const n = s && s.datos && s.datos.negocio;
+    if (!n || localDay(s.at) !== ymd(today())) { el.hidden = true; return; }
+    const cells = [];
+    if (n.green_fees_ayer != null) cells.push(['Green fees ayer', String(n.green_fees_ayer)]);
+    if (n.ocupacion_hoy != null) cells.push(['Ocupación hoy', n.ocupacion_hoy + ' %']);
+    if (eur(n.devengado_ayer)) cells.push(['Devengado ayer', eur(n.devengado_ayer)]);
+    if (eur(n.cobrado_ayer)) cells.push(['Cobrado ayer', eur(n.cobrado_ayer)]);
+    if (n.reservas_hoy != null) cells.push(['Reservas hoy', String(n.reservas_hoy)]);
+    if (!cells.length) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = cells.slice(0, 4).map(([k, v]) => '<div><b>' + esc(v) + '</b><span>' + esc(k) + '</span></div>').join('');
+  }
+  function renderSemana() {
+    const w = state.semana; const box = $('#semanaFold');
+    if (!w) { box.hidden = true; return; }
+    box.hidden = false;
+    $('#semanaLine').textContent = 'Tu semana' + (w.desde && w.hasta ? ' (' + fmtShort(w.desde) + ' a ' + fmtShort(w.hasta) + ')' : '');
+    const li = (t, r) => '<li class="plain"><span>' + t + '</span><span class="r">' + esc(r || '') + '</span></li>';
+    const lista = (arr) => (Array.isArray(arr) ? arr : []).map((x) => esc(typeof x === 'string' ? x : (x.titulo || x.nombre || '') + (x.persona ? ' (' + x.persona + ')' : '') + (x.dia ? ' · ' + x.dia : ''))).join('<br>');
+    const c = w.cerradas; const cn = typeof c === 'object' && c ? c.total ?? c.n : c; const auto = typeof c === 'object' && c ? c.solos ?? c.auto : null;
+    let html = '';
+    if (w.frase) html += '<li class="plain"><span><b>' + esc(w.frase) + '</b></span><span></span></li>';
+    if (cn != null) html += li('Cerradas', cn + (auto ? ' (' + auto + ' solas)' : ''));
+    if (w.entraron != null) html += li('Entraron', String(typeof w.entraron === 'object' ? w.entraron.total ?? '' : w.entraron));
+    if (Array.isArray(w.parados) && w.parados.length) html += li('Parados más de 7 días<br><span class="muted">' + lista(w.parados) + '</span>', String(w.parados.length));
+    if (Array.isArray(w.delegado_vencido) && w.delegado_vencido.length) html += li('Delegado vencido<br><span class="muted">' + lista(w.delegado_vencido) + '</span>', String(w.delegado_vencido.length));
+    if (Array.isArray(w.torneos_proxima) && w.torneos_proxima.length) html += li('Torneos de la semana que viene<br><span class="muted">' + lista(w.torneos_proxima) + '</span>', String(w.torneos_proxima.length));
+    $('#semana').innerHTML = html || '<li class="plain"><span class="muted">Sin datos de la semana.</span><span></span></li>';
+  }
+  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
 
   // ---------- datos ----------
   function showBanner(msg, err) { const b = $('#banner'); b.textContent = msg; b.className = 'banner' + (err ? ' err' : ''); b.hidden = !msg; }
@@ -318,6 +400,8 @@
     else if (t === 'briefings') q = sb.from('briefings').select('*').order('at', { ascending: false }).limit(1);
     else if (t === 'revisiones') q = sb.from('revisiones').select('*').order('at', { ascending: false }).limit(1);
     else if (t === 'libreta') q = sb.from('libreta').select('*').order('at', { ascending: false }).limit(20);
+    else if (t === 'sync') q = sb.from('sync').select('*').order('id', { ascending: false }).limit(1);
+    else if (t === 'cierres') q = sb.from('cierres').select('*').gte('fecha', ymd(addDays(today(), -7))).order('fecha', { ascending: false }).limit(7);
     else if (t === 'solicitudes') q = sb.from('solicitudes').select('*').or('estado.eq.pendiente,and(estado.eq.error,hecha_at.gt.' + new Date(Date.now() - 864e5).toISOString() + ')');
     else return;
     const { data, error } = await q;
@@ -329,8 +413,10 @@
     else if (t === 'revisiones') state.revision = data[0] || null;
     else if (t === 'libreta') state.libreta = data;
     else if (t === 'solicitudes') state.solicitudes = data;
+    else if (t === 'sync') state.sync = data[0] || null;
+    else if (t === 'cierres') { const s = data.find((c) => c.datos && c.datos.semana); state.semana = s ? { fecha: s.fecha, ...s.datos.semana } : null; }
   }
-  const TABLES = ['asuntos', 'agenda', 'prep', 'briefings', 'revisiones', 'libreta', 'solicitudes'];
+  const TABLES = ['asuntos', 'agenda', 'prep', 'briefings', 'revisiones', 'libreta', 'solicitudes', 'sync', 'cierres'];
   async function loadAll() { await Promise.all(TABLES.map(loadTable)); state.loaded = true; renderAll(); }
   let channel = null, reloadTimer = {};
   function subscribe() {
