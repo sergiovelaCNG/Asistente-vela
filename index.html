@@ -87,7 +87,7 @@ h1 em { font-style: normal; }
 .biz b { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .biz span { font-size: 12px; color: var(--on-green-mut); }
 .bizcap { margin: 0 -18px; padding: 8px 18px 0; font-size: 11px; letter-spacing: .02em; color: var(--on-green-mut); background: rgba(0, 0, 0, .12); border-top: 1px solid rgba(255, 255, 255, .16); }
-#bizres .biz { border-top: 0; }
+#bizres .biz, #bizdin .biz { border-top: 0; }
 .fresh { font-size: 13px; color: var(--muted); margin: -16px 4px 0; }
 .fresh:empty { display: none; }
 .fresh.late { color: var(--crit); font-weight: 600; background: var(--crit-soft); padding: 8px 12px; border-radius: var(--r-sm); margin: -12px 0 0; }
@@ -188,6 +188,9 @@ section { display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 1
 .eqlist { list-style: none; margin: 0; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); padding: 0 16px; box-shadow: var(--shadow); }
 .eqlist li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 3px 12px; padding: 13px 0; border-top: 1px solid var(--line-2); align-items: baseline; }
 .eqlist li:first-child { border-top: 0; }
+.eqlist .eqbtns { display: inline-flex; gap: 6px; align-items: center; justify-self: end; flex-wrap: wrap; justify-content: flex-end; }
+.eqlist button.mini { cursor: pointer; font-family: inherit; }
+.eqlist .eqfwd-ok { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
 .eqlist .age { font-size: 18px; font-weight: 700; color: var(--muted); letter-spacing: -.02em; }
 .eqlist .age small { font-size: 12px; font-weight: 600; margin-left: 1px; }
 .eqlist .age.warm { color: var(--flag); }
@@ -326,6 +329,7 @@ details.fold > .fl, details.fold > div { padding: 0 16px 8px; }
     <h1 id="greet">Hola, Sergio</h1>
     <nav class="score" id="score" aria-label="Tu día en cifras"></nav>
     <div class="biz" id="biz" hidden></div>
+    <div id="bizdin" hidden></div>
     <div id="bizres" hidden></div>
   </header>
   <p class="fresh" id="fresh" aria-live="polite"></p>
@@ -414,7 +418,7 @@ details.fold > .fl, details.fold > div { padding: 0 16px 8px; }
 <div class="overlay" id="fwdOverlay" hidden>
   <div class="editor" role="dialog" aria-labelledby="fTitle">
     <h3 id="fTitle">Pasar al equipo</h3>
-    <p class="muted" style="margin-bottom:10px">Reenvía el correo original completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. El asunto pasa a «Delegado y en espera».</p>
+    <p class="muted" id="fAyuda" style="margin-bottom:10px">Reenvía el correo original completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. El asunto pasa a «Delegado y en espera».</p>
     <div class="f"><label for="fPara">A quién</label>
       <select id="fPara">
         <option value="info@cngolf.es" data-nombre="info@ (todo el equipo)">info@cngolf.es · todo el equipo</option>

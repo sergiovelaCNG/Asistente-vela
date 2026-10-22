@@ -141,7 +141,7 @@
         '<button class="btn ghost" data-action="edit">Editar</button></div></article>';
     }).join('') : '<p class="empty-s">Nada urgente que firmar. Lo demás está en «Tus tareas».</p>';
     const fallos = state.solicitudes.filter((s) => s.estado === 'error');
-    if (fallos.length) $('#firma').innerHTML = fallos.map((s) => { const it = state.items.find((x) => x.id === s.asunto_id); return '<p class="pend">No pude preparar el ' + (s.tipo === 'reenvio' ? 'reenvío' : 'borrador') + (it ? ' de «' + esc(it.titulo) + '»' : '') + ': ' + esc(s.resultado || 'error') + '</p>'; }).join('') + $('#firma').innerHTML;
+    if (fallos.length) $('#firma').innerHTML = fallos.map((s) => { const it = state.items.find((x) => x.id === s.asunto_id); return '<p class="pend">No pude preparar el ' + (s.tipo === 'reenvio' ? 'reenvío' : 'borrador') + (it ? ' de «' + esc(it.titulo) + '»' : s.enlace ? ' del correo de «Equipo»' : '') + ': ' + esc(s.resultado || 'error') + '</p>'; }).join('') + $('#firma').innerHTML;
   }
   // Agenda: copia del calendario que mantienen las tareas automáticas.
   const isTorneo = (e) => !!e.torneo;
@@ -317,6 +317,8 @@
     if (s.includes('parado')) return { cls: 'x', txt: 'parado' };
     return { cls: '', txt: 'sin respuesta' };
   }
+  // P72 · reenvío pedido desde «Equipo» (sin asunto): se reconoce por el enlace del hilo.
+  function eqPedido(enlace) { return state.solicitudes.find((s) => s.tipo === 'reenvio' && s.estado === 'pendiente' && !s.asunto_id && s.enlace === enlace); }
   function eqAsunto(p) { return String(p.asunto || '').replace(/\s*\((parado|sección)[^)]*\)\s*$/i, '').trim(); }
   function renderEquipo() {
     const r = state.revision; const el = $('#equipo');
@@ -328,13 +330,17 @@
     $('#nEquipo').textContent = (pend.length ? pend.length + (pend.length === 1 ? ' pendiente' : ' pendientes') : 'al día') + (cuando ? ', revisado ' + cuando : '');
     const porB = {}; pend.forEach((p) => { const k = p.bandeja || 'Sin bandeja'; porB[k] = (porB[k] || 0) + 1; });
     const sum = Object.keys(porB).sort((a, b) => porB[b] - porB[a]).map((k) => '<span class="chip' + (k === 'Extranjeros' ? ' flag' : '') + '">' + esc(k) + ' ' + porB[k] + '</span>').join('');
-    const rows = pend.map((p) => {
+    state.eqPend = pend;
+    const rows = pend.map((p, i) => {
       const d = typeof p.dias === 'number' ? p.dias : null; const st = eqEstado(p);
+      const pr = p.enlace ? eqPedido(p.enlace) : null;
+      const pasar = !p.enlace ? '' : pr ? '<span class="eqfwd-ok">Reenvío a ' + esc(pr.para_nombre || pr.para || '') + ' pedido</span>'
+        : '<button class="mini" data-eqfwd="' + i + '">Pasar</button>';
       const age = d === null ? '—' : d === 0 ? 'hoy' : d + '<small>d</small>';
       const link = p.enlace ? '<a href="' + esc(p.enlace) + '" target="_blank" rel="noopener">' + esc(eqAsunto(p)) + '</a>' : esc(eqAsunto(p));
       const extra = /pasada|cerrar/i.test(p.estado || '') ? '<span>fecha pasada: responder o cerrar</span>' : '';
       return '<li><span class="age' + (d >= 7 ? ' hot' : d >= 3 ? ' warm' : '') + '">' + age + '</span><span class="asu">' + link + '</span>' +
-        (p.enlace ? '<a class="mini go" href="' + esc(p.enlace) + '" target="_blank" rel="noopener">Abrir</a>' : '<span></span>') +
+        (p.enlace ? '<span class="eqbtns"><a class="mini go" href="' + esc(p.enlace) + '" target="_blank" rel="noopener">Abrir</a>' + pasar + '</span>' : '<span></span>') +
         '<span class="sub"><span class="st ' + st.cls + '">' + esc(st.txt) + '</span><span>' + esc(p.bandeja || '') + '</span>' + extra + '</span></li>';
     }).join('');
     const resHtml = res.length ? '<details class="res"><summary>' + res.length + (res.length === 1 ? ' resuelto' : ' resueltos') + ' desde el informe</summary><ul>' +
@@ -378,8 +384,22 @@
     el.hidden = false;
     el.innerHTML = '<p class="bizcap">Reservas hoy por unidad · GolfManager ' + esc(hhmm(d.generado)) + (u.completo ? '' : ' · lectura incompleta') + '</p><div class="biz">' + areas.map(celda).join('') + golf + '</div>';
   }
+  // P71 (22/10/2026): dinero de ayer por unidad de negocio, copiado literal del Informe Diario (sync.datos.negocio.unidades).
+  function renderDinero() {
+    const el = $('#bizdin'); const s = state.sync; const n = s && s.datos && s.datos.negocio; const u = n && n.unidades;
+    if (!u || typeof u !== 'object' || localDay(s.at) !== ymd(today())) { el.hidden = true; return; }
+    const ETQ = { 'Gourmet Experience': 'Gourmet' };
+    const filas = Object.entries(u).filter(([, x]) => x && ((x.devengado || 0) !== 0 || (x.ventas_netas || 0) !== 0))
+      .sort((a, b) => ((b[1].devengado || 0) + (b[1].ventas_netas || 0)) - ((a[1].devengado || 0) + (a[1].ventas_netas || 0)));
+    if (!filas.length) { el.hidden = true; return; }
+    const celda = ([k, x]) => '<div><b>' + esc(eur(x.devengado) || '—') + '</b><span>' + esc((ETQ[k] || k) + ' · devengado') + '</span><span>' + esc('ventas ' + (eur(x.ventas_netas) || '—') + (x.sin_cobro ? ' · sin cobrar ' + eur(x.sin_cobro) : '')) + '</span></div>';
+    const resto = n.unidades_sin_datos ? '<div><b>—</b><span>Golf y resto · hasta el 02/11</span></div>' : '';
+    el.hidden = false;
+    el.innerHTML = '<p class="bizcap">Dinero de ayer por unidad · devengado sin IVA; ventas con IVA' + (n.fecha_datos ? ' · ' + esc(fmtShort(n.fecha_datos)) : '') + '</p><div class="biz">' + filas.map(celda).join('') + resto + '</div>';
+  }
   function renderBiz() {
     renderReservas();
+    renderDinero();
     const el = $('#biz'); const s = state.sync; const n = s && s.datos && s.datos.negocio;
     if (!n || localDay(s.at) !== ymd(today())) { el.hidden = true; return; }
     const cells = [];
@@ -622,6 +642,9 @@
   function openFwd(it) {
     state.fwdItem = it;
     $('#fTitle').textContent = 'Pasar al equipo · ' + (it.titulo || '');
+    $('#fAyuda').textContent = it.equipo
+      ? 'Reenvía el hilo completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque.'
+      : 'Reenvía el correo original completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. El asunto pasa a «Delegado y en espera».';
     $('#fPara').value = 'info@cngolf.es'; $('#fOtroWrap').hidden = true; $('#fOtro').value = '';
     $('#fNota').value = ''; $('#fStatus').textContent = ''; $('#fPedir').disabled = false;
     if (!$('#overlay').hidden) closeEditor();
@@ -632,6 +655,11 @@
   $('#fPara').addEventListener('change', () => { $('#fOtroWrap').hidden = $('#fPara').value !== 'otro'; });
   $('#fCancel').addEventListener('click', closeFwd);
   $('#fwdOverlay').addEventListener('click', (e) => { if (e.target === $('#fwdOverlay')) closeFwd(); });
+  $('#equipo').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-eqfwd]'); if (!b) return;
+    const p = (state.eqPend || [])[Number(b.dataset.eqfwd)]; if (!p || !p.enlace) return;
+    openFwd({ equipo: true, titulo: eqAsunto(p), enlace: p.enlace });
+  });
   $('#fPedir').addEventListener('click', async () => {
     const it = state.fwdItem; if (!it) return;
     const sel = $('#fPara'); const otro = sel.value === 'otro';
@@ -639,7 +667,7 @@
     if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(para)) { $('#fStatus').textContent = 'Escribe un correo válido.'; return; }
     const nombre = otro ? para : sel.options[sel.selectedIndex].dataset.nombre || para;
     $('#fPedir').disabled = true;
-    const { error } = await sb.from('solicitudes').insert({ tipo: 'reenvio', asunto_id: it.id, para, para_nombre: nombre, instrucciones: $('#fNota').value.trim() || null });
+    const { error } = await sb.from('solicitudes').insert({ tipo: 'reenvio', asunto_id: it.equipo ? null : it.id, enlace: it.equipo ? it.enlace : null, para, para_nombre: nombre, instrucciones: $('#fNota').value.trim() || null });
     if (error) { $('#fStatus').textContent = 'No se pudo pedir (' + error.message + ').'; $('#fPedir').disabled = false; return; }
     closeFwd(); await loadTable('solicitudes'); renderAll();
   });
