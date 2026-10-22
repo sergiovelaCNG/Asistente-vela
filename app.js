@@ -112,7 +112,16 @@
     if (!b || !b.texto) return;
     const lines = String(b.texto).split(/\n+/).map((s) => s.trim()).filter(Boolean);
     const at = b.at ? (localDay(b.at) === ymd(today()) ? 'hoy ' : DIAS[new Date(b.at).getDay()] + ' ') + hhmm(b.at) : '';
-    el.innerHTML = lines.map((l) => '<p>' + esc(l) + '</p>').join('') + (at ? '<span class="when">Parte de ' + esc(at) + '</span>' : '');
+    // V2.2 (22/10/2026): el parte se escribe cada 3 h; lo que se ha cerrado después se enseña debajo para que no lo contradiga.
+    const desde = b.at ? new Date(b.at).getTime() : 0;
+    const cerrados = cng().filter((it) => it.estado === 'hecho' && it.hecho_at && new Date(it.hecho_at).getTime() > desde && it.tipo !== 'idea')
+      .sort((x, y) => String(y.hecho_at).localeCompare(String(x.hecho_at)));
+    const despues = cerrados.length ? '<div class="since"><b>Desde este parte ya está resuelto</b><ul>' + cerrados.slice(0, 4).map((it) =>
+      '<li>' + esc(it.titulo) + ' <span class="muted">· ' + (it.extra && it.extra.auto_cierre ? 'se cerró solo' : 'lo cerraste tú') + ' a las ' + hhmm(it.hecho_at) + '</span></li>').join('') +
+      (cerrados.length > 4 ? '<li class="muted">y ' + (cerrados.length - 4) + ' más en «Hecho»</li>' : '') + '</ul></div>' : '';
+    const pal = (s) => new Set(norm(s).replace(/[^a-z0-9& ]/g, ' ').split(/\s+/).filter((w) => w.length >= 5));
+    const cerradoEn = (l) => { const w = pal(l); return cerrados.some((it) => { let n = 0; pal(it.titulo).forEach((x) => { if (w.has(x)) n++; }); return n >= 2; }); };
+    el.innerHTML = lines.map((l) => '<p' + (cerrados.length && cerradoEn(l) ? ' class="done"' : '') + '>' + esc(l) + '</p>').join('') + despues + (at ? '<span class="when">Parte de ' + esc(at) + (cerrados.length ? '; lo de arriba puede estar ya resuelto' : '') + '</span>' : '');
   }
   function renderFirma() {
     const list = firmaList();

@@ -62,7 +62,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .muted { color: var(--muted); }
 
 /* Cifras alineadas solo donde hay columnas de números. */
-.score b, .ev .t, .radar .d, .eqlist .age, .fl li .r, .state, .when { font-variant-numeric: tabular-nums; }
+.score b, .ev .t, .radar .d, .eqlist .age, .fl li .r, .state { font-variant-numeric: tabular-nums; }
 
 /* ---- Tarjeta de juego ---- */
 header.card { background: var(--green); color: var(--on-green); border-radius: var(--r-lg); padding: 18px 18px 0; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
@@ -99,6 +99,11 @@ h1 em { font-style: normal; }
 .parte p + p { color: var(--muted); font-weight: 400; font-size: 17px; }
 .parte .empty { font-size: 15px; color: var(--muted); font-weight: 400; }
 .when { font-size: 13px; color: var(--muted); }
+.parte p.done { text-decoration: line-through; text-decoration-thickness: 1px; color: var(--muted); }
+.since { background: var(--green-soft); border-radius: var(--r-sm); padding: 10px 12px; font-size: 14.5px; }
+.since b { display: block; font-size: 13px; color: var(--green-2); margin-bottom: 2px; }
+.since ul { margin: 0; padding-left: 18px; }
+.since li { margin: 2px 0; }
 
 /* ---- Soltar ---- */
 .soltar { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
