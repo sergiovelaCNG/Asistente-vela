@@ -174,6 +174,37 @@ section { display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 1
 .ev .p.warn b { color: var(--crit); }
 .ev.tor .s::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--flag-dot); margin-right: 8px; vertical-align: 2px; }
 
+/* ---- Operación de hoy (P82) ---- */
+.tiempo { font-size: 13.5px; color: var(--muted); margin-top: -6px; }
+.tiempo:empty { display: none; }
+.opgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.op { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; min-width: 0; border-top: 4px solid var(--line); }
+.op.ok { border-top-color: var(--ok); } .op.warn { border-top-color: var(--flag-dot); } .op.bad { border-top-color: var(--crit); }
+.op h3 { font-size: 15px; font-weight: 700; }
+.op p { font-size: 14px; overflow-wrap: anywhere; }
+.op .sem b { font-size: 17px; }
+.op .sem.ok b { color: var(--ok); } .op .sem.warn b { color: var(--flag); } .op .sem.bad b { color: var(--crit); }
+.opf { font-size: 12.5px; color: var(--muted); margin-top: auto; }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.kpis div { display: flex; flex-direction: column; }
+.kpis b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.kpis span { font-size: 12.5px; color: var(--muted); }
+
+/* ---- Turnos (P81) ---- */
+.turnos { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); padding: 0 16px; box-shadow: var(--shadow); }
+.tdep { padding: 10px 0 8px; border-top: 1px solid var(--line-2); }
+.tdep:first-child { border-top: 0; }
+.tdh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.tdh h3 { font-size: 15.5px; font-weight: 700; }
+.tdep ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.tdep li { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 10px; padding: 5px 0; font-size: 14.5px; align-items: baseline; }
+.tdep .h { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13.5px; }
+.tdep .n { overflow-wrap: anywhere; }
+.tdep .k { font-size: 12px; font-weight: 700; color: var(--ok); }
+.tdep li.aus .n, .tdep li.aus .h { text-decoration: line-through; color: var(--muted); }
+.tdep li.aus .k { color: var(--crit); }
+.turnos .empty-s { padding: 12px 0; }
+
 /* ---- Delegado ---- */
 #delegado:not(:empty) { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); padding: 0 16px; box-shadow: var(--shadow); }
 #delegado > .empty-s { background: var(--bg); }
@@ -355,9 +386,18 @@ details.fold > .fl, details.fold > div { padding: 0 16px 8px; }
       <div class="shead"><h2 id="h-firma">A tu firma</h2><span class="label" id="firmaN"></span></div>
       <div id="firma"></div>
     </section>
+    <section aria-labelledby="h-op">
+      <div class="shead"><h2 id="h-op">Operación de hoy</h2><span class="label" id="opSub"></span></div>
+      <p class="tiempo" id="opTiempo"></p>
+      <div id="operacion" class="opgrid"></div>
+    </section>
     <section aria-labelledby="h-agenda">
       <div class="shead"><h2 id="h-agenda">Agenda</h2><span class="label" id="agendaSub"></span></div>
       <div id="agenda"><p class="empty-s">Cargando la agenda…</p></div>
+    </section>
+    <section aria-labelledby="h-turnos">
+      <div class="shead"><h2 id="h-turnos">Trabajan hoy</h2><span class="label" id="turnosSub"></span></div>
+      <div id="turnos" class="turnos"></div>
     </section>
     <section aria-labelledby="h-del">
       <div class="shead"><h2 id="h-del">Delegado y en espera</h2><span class="label" id="delN"></span></div>

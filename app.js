@@ -416,6 +416,101 @@
     el.innerHTML = '<div class="biz tot">' + cells.join('') + '</div>';
   }
   function renderBiz() { renderTotal(renderReservas()); }
+  // P81 (28/10/2026): quién trabaja en Caddy Master, Gestión de Juego y Fitting (turnos de GolfManager vía D4).
+  // Desde las 19:00, los de mañana, igual que las reservas. Ausencias sin motivo. Sin dato = «no disponible», nunca vacío inventado.
+  function renderTurnos() {
+    const el = $('#turnos'); const v = state.vivo; const d = v && v.datos; const u = d && d.unidades; const t = u && u.turnos;
+    const noche = new Date().getHours() >= 19;
+    $('#h-turnos').textContent = noche ? 'Trabajan mañana' : 'Trabajan hoy';
+    if (!d || d.fecha !== ymd(today()) || !t || t.version !== 'P81') {
+      $('#turnosSub').textContent = ''; el.innerHTML = '<p class="empty-s">' + (state.loaded ? 'Turnos no disponibles ahora mismo.' : 'Cargando turnos…') + '</p>'; return;
+    }
+    const blq = t[noche ? 'manana' : 'hoy'] || {};
+    $('#turnosSub').textContent = 'GolfManager ' + hhmm(d.generado) + (t.ausencias ? '' : ' · sin datos de ausencias');
+    const ahora = new Date(); const hm = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes());
+    const DEPS = ['Caddy Master', 'Gestión de Juego', 'Fitting'];
+    el.innerHTML = DEPS.map((dep) => {
+      const gente = Array.isArray(blq[dep]) ? blq[dep] : [];
+      const activos = gente.filter((p) => !p.ausente).length;
+      const filas = gente.map((p) => {
+        const dentro = !noche && !p.ausente && p.desde && p.hasta && p.desde <= hm && hm < p.hasta;
+        return '<li class="' + (p.ausente ? 'aus' : dentro ? 'now' : '') + '"><span class="h">' + esc((p.desde || '–') + '–' + (p.hasta || '–')) + '</span><span class="n">' + esc(p.nombre) +
+          (p.rol ? ' <span class="muted">· ' + esc(p.rol) + '</span>' : '') + '</span><span class="k">' + (p.ausente ? 'ausente' : dentro ? 'ahora' : '') + '</span></li>';
+      }).join('');
+      return '<div class="tdep"><div class="tdh"><h3>' + esc(dep) + '</h3><span class="' + (activos ? 'label' : 'alert') + '">' + (activos ? activos + (activos === 1 ? ' persona' : ' personas') : 'nadie con turno') + '</span></div>' +
+        (filas ? '<ul>' + filas + '</ul>' : '') + '</div>';
+    }).join('');
+  }
+  // P82 (28/10/2026): «Operación de hoy» — campo, torneo del día, golf, clientes y tiempo. Todo copiado de su fuente
+  // (Informe Diario vía sync, GolfManager vía D4, Calendar vía agenda). Lo que no hay se dice; nunca 0 inventado.
+  const SEMCLS = { verde: 'ok', 'ámbar': 'warn', ambar: 'warn', rojo: 'bad' };
+  function cardOp(titulo, cuerpo, pie, cls) { return '<div class="op' + (cls ? ' ' + cls : '') + '"><h3>' + titulo + '</h3>' + cuerpo + (pie ? '<p class="opf">' + pie + '</p>' : '') + '</div>'; }
+  function renderOperacion() {
+    const el = $('#operacion'); const s = state.sync; const hoyS = s && localDay(s.at) === ymd(today()) ? s.datos || {} : null;
+    const noche = new Date().getHours() >= 19; const dia = noche ? ymd(addDays(today(), 1)) : ymd(today());
+    $('#h-op').textContent = noche ? 'Operación de mañana' : 'Operación de hoy';
+    $('#opSub').textContent = hoyS && hoyS.informe_hora ? 'informe de las ' + hoyS.informe_hora : '';
+    const cards = [];
+    // Campo (parte del día: siempre el de hoy; por la noche se avisa de que es el de hoy)
+    const c = hoyS && hoyS.campo;
+    if (c && (c.semaforo || c.resumen)) {
+      const sem = String(c.semaforo || '').toLowerCase();
+      const cab = '<p class="sem ' + (SEMCLS[sem] || '') + '"><b>' + esc(c.semaforo || '—') + '</b>' + (typeof c.puntos === 'number' ? ' · ' + c.puntos + '/100' : '') + (c.tendencia ? ' · ' + esc(c.tendencia) : '') + '</p>';
+      const det = [c.resumen, c.instalaciones, c.buggies ? 'Buggies: ' + c.buggies : null, c.observaciones].filter(Boolean).map((x) => '<p>' + esc(x) + '</p>').join('');
+      cards.push(cardOp('Campo' + (noche ? ' · parte de hoy' : ''), cab + det, c.enlace ? '<a href="' + esc(c.enlace) + '" target="_blank" rel="noopener">Abrir el parte</a>' : '', SEMCLS[sem] || ''));
+    } else cards.push(cardOp('Campo', '<p class="muted">' + (state.loaded ? 'Pendiente del Informe Diario (llega hacia las 09:00).' : 'Cargando…') + '</p>'));
+    // Torneo del día: calendario + informe + GolfManager
+    const tors = state.events.filter((e) => isTorneo(e) && e.dia <= dia && dia <= (e.dia_fin || e.dia));
+    const v = state.vivo && state.vivo.datos; const tg = v && v.fecha === ymd(today()) && v.unidades && v.unidades.torneos_gm;
+    const gm = tg && Array.isArray(tg[noche ? 'manana' : 'hoy']) ? tg[noche ? 'manana' : 'hoy'] : [];
+    const inf = !noche && hoyS && Array.isArray(hoyS.torneo_hoy) ? hoyS.torneo_hoy : [];
+    const key = (x) => norm(x).replace(/^(po|pr|pb|ab|a|b|f|p) · /, '').replace(/[^a-z0-9]/g, '');
+    const igual = (x, y) => { const a = key(x), b = key(y); return !!a && !!b && (a === b || a.includes(b) || b.includes(a)); };
+    const nombres = [];
+    tors.map((e) => { const t = torneoName(e); return (t.codigo ? t.codigo + ' · ' : '') + t.nombre; }).concat(gm.map((g) => g.nombre))
+      .forEach((x) => { if (!nombres.some((y) => igual(x, y))) nombres.push(x); });
+    if (nombres.length) {
+      cards.push(cardOp(noche ? 'Torneo de mañana' : 'Torneo de hoy', nombres.map((n) => {
+        const g = gm.find((x) => igual(x.nombre, n));
+        const i = inf.find((x) => igual(x.nombre || '', n));
+        const datos = [];
+        if (g && g.salida) datos.push('salida ' + g.salida);
+        if (g && typeof g.inscritos === 'number') datos.push(g.inscritos + (typeof g.plazas === 'number' ? ' de ' + g.plazas : '') + ' inscritos' + (g.espera ? ' · ' + g.espera + ' en espera' : ''));
+        if (i && i.bandera) datos.push('bandera ' + i.bandera);
+        if (i && typeof i.asuntos === 'number' && i.asuntos > 0) datos.push(i.asuntos + (i.asuntos === 1 ? ' asunto abierto' : ' asuntos abiertos'));
+        return '<p><b>' + esc(n) + '</b>' + (datos.length ? '<br><span class="muted">' + esc(datos.join(' · ')) + '</span>' : '') + '</p>';
+      }).join(''), !gm.length ? 'Inscritos y salidas desde GolfManager cuando los torneos se gestionen allí.' : ''));
+    }
+    // Golf: green fees, ocupación, internacionales (desde el 02/11)
+    const n = hoyS && hoyS.negocio || {};
+    const kp = [['Green fees ayer', n.green_fees_ayer != null ? String(n.green_fees_ayer) : null], ['Ocupación hoy', n.ocupacion_hoy != null ? n.ocupacion_hoy + ' %' : null],
+      ['Jugadores hoy', n.jugadores_hoy != null ? String(n.jugadores_hoy) : null], ['Internacionales', n.cuota_internacional != null ? n.cuota_internacional + ' %' : null]];
+    const algunGolf = kp.some((x) => x[1] != null);
+    cards.push(cardOp('Golf', '<div class="kpis">' + kp.map(([k, x]) => '<div><b>' + esc(x == null ? '—' : x) + '</b><span>' + esc(k) + '</span></div>').join('') + '</div>',
+      algunGolf ? '' : 'Sin datos hasta el paso a GolfManager (02/11).'));
+    // Clientes: reclamaciones, dinero de clientes pendiente, devoluciones (sin nombres)
+    const cl = hoyS && hoyS.clientes;
+    if (cl) {
+      const rec = cl.reclamaciones_sin_respuesta;
+      cards.push(cardOp('Clientes', '<p class="sem ' + (rec > 0 ? 'bad' : rec === 0 ? 'ok' : '') + '"><b>' + (rec == null ? '—' : rec) + '</b> ' + (rec === 1 ? 'reclamación sin respuesta' : 'reclamaciones sin respuesta') + '</p>' +
+        (cl.dinero_pendiente != null ? '<p><b>' + esc(cl.dinero_pendiente) + '</b> con dinero de cliente pendiente' + (cl.dinero_tipos ? '<br><span class="muted">' + esc(cl.dinero_tipos) + '</span>' : '') + '</p>' : '') +
+        (cl.devoluciones_7d ? '<p class="muted">Devoluciones 7 días: ' + esc(cl.devoluciones_7d) + '</p>' : ''), '', rec > 0 ? 'bad' : ''));
+    } else cards.push(cardOp('Clientes', '<p class="muted">' + (state.loaded ? 'Pendiente del Informe Diario.' : 'Cargando…') + '</p>'));
+    el.innerHTML = cards.join('');
+    renderTiempo(dia);
+  }
+  // Tiempo: solo informativo (decisión de Sr. Vela: no penaliza ni decide). Open-Meteo, coordenadas aproximadas del CNG.
+  let tiempoCache = null;
+  async function renderTiempo(dia) {
+    const el = $('#opTiempo'); const pinta = () => { const t = tiempoCache && tiempoCache.dias && tiempoCache.dias[dia]; el.textContent = t ? (dia === ymd(today()) ? 'Hoy' : 'Mañana') + ': ' + t : ''; };
+    if (tiempoCache && Date.now() - tiempoCache.at < 3 * 3600e3) { pinta(); return; }
+    try {
+      const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=40.51&longitude=-3.70&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&timezone=Europe%2FMadrid&forecast_days=2');
+      if (!r.ok) return; const j = await r.json(); const d = j.daily || {}; const dias = {};
+      (d.time || []).forEach((t, i) => { dias[t] = Math.round(d.temperature_2m_min[i]) + '–' + Math.round(d.temperature_2m_max[i]) + ' °C · lluvia ' + d.precipitation_probability_max[i] + ' % · viento ' + Math.round(d.wind_speed_10m_max[i]) + ' km/h'; });
+      tiempoCache = { at: Date.now(), dias }; pinta();
+    } catch (e) { /* informativo: si falla, no se muestra */ }
+  }
   function renderSemana() {
     const w = state.semana; const box = $('#semanaFold');
     if (!w) { box.hidden = true; return; }
@@ -433,7 +528,7 @@
     if (Array.isArray(w.torneos_proxima) && w.torneos_proxima.length) html += li('Torneos de la semana que viene<br><span class="muted">' + lista(w.torneos_proxima) + '</span>', String(w.torneos_proxima.length));
     $('#semana').innerHTML = html || '<li class="plain"><span class="muted">Sin datos de la semana.</span><span></span></li>';
   }
-  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
+  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
 
   // ---------- datos ----------
   function showBanner(msg, err) { const b = $('#banner'); b.textContent = msg; b.className = 'banner' + (err ? ' err' : ''); b.hidden = !msg; }
