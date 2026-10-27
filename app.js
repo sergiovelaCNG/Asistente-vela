@@ -372,45 +372,50 @@
     el.textContent = viejo ? 'Ojo: los datos del equipo son de ' + (hoy ? 'las ' : fmtShort(localDay(r.at)) + ', ') + hhmm(r.at) + '. La última comprobación no ha llegado.'
       : 'Equipo comprobado ' + (hoy ? 'a las ' + hhmm(r.at) : 'el ' + fmtShort(localDay(r.at))) + '.';
   }
-  // P71 (22/10/2026): reservas de hoy por unidad de negocio, en vivo desde GolfManager (n8n D4 cada 30 min → negocio_vivo).
+  // P79/P80 (27/10/2026): cabecera verde = reservas por unidad (hoy y próximos 7 días) y, debajo, un único total:
+  // reservas de hoy + dinero de ayer (devengado, cifra de cabecera del Informe Diario). Sin desglose económico.
+  // P80 (27/10/2026): desde las 19:00 se muestran las reservas de MAÑANA (D4 V1.1.0 → unidades.manana).
+  // Comparativa con el mismo día de la semana pasada a la misma hora (Supabase · reservas_historico), salvo Escuela.
   function renderReservas() {
     const el = $('#bizres'); const v = state.vivo; const d = v && v.datos; const u = d && d.unidades;
-    if (!u || !u.hoy || d.fecha !== ymd(today())) { el.hidden = true; return; }
+    if (!u || !u.hoy || d.fecha !== ymd(today())) { el.hidden = true; return null; }
+    const noche = new Date().getHours() >= 19 && u.manana && typeof u.manana === 'object';
+    const blq = noche ? u.manana : u.hoy; const cuando = noche ? 'mañana' : 'hoy';
+    const cmp = d.comparativa && d.comparativa[noche ? 'manana' : 'hoy'];
     const ETQ = { 'Escuela': ['Escuela', 'clases', 'alumnos'], 'Gourmet Experience': ['Gourmet', 'bahías', 'personas'], 'Fitting': ['Fitting', 'sesiones', null] };
-    const areas = Object.keys(u.hoy).sort((a, b) => (u.hoy[b].reservas || 0) - (u.hoy[a].reservas || 0));
-    const celda = (a) => { const x = u.hoy[a]; const e = ETQ[a] || [a, 'reservas', null];
-      return '<div><b>' + esc(String(x.reservas)) + '</b><span>' + esc(e[0] + ' · ' + e[1] + (e[2] && x.personas > 0 ? ' · ' + x.personas + ' ' + e[2] : '')) + '</span></div>'; };
-    const golf = areas.some((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a)) ? '' : '<div><b>—</b><span>Golf · hasta el 02/11</span></div>';
+    const d7 = u.d7 || {};
+    const num = (x) => x && typeof x.reservas === 'number' ? x.reservas : (u.completo ? 0 : null);
+    const areas = Array.from(new Set(Object.keys(blq).concat(Object.keys(d7))))
+      .sort((a, b) => ((num(blq[b]) || 0) - (num(blq[a]) || 0)) || ((num(d7[b]) || 0) - (num(d7[a]) || 0)));
+    const ref = cmp && cmp.fecha_ref ? fmtShort(cmp.fecha_ref) : '';
+    const flecha = (a, n) => {
+      if (a === 'Escuela' || n === null || !cmp || !cmp.unidades || !cmp.unidades[a]) return '';
+      const sp = cmp.unidades[a].semana_pasada; if (typeof sp !== 'number') return '';
+      const dl = n - sp; const c = dl > 0 ? 'up' : dl < 0 ? 'dn' : 'eq';
+      return '<span class="cmp ' + c + '">' + (dl > 0 ? '▲ +' + dl : dl < 0 ? '▼ ' + dl : '= ') + ' vs ' + esc(ref) + ' (' + sp + ')</span>';
+    };
+    const celda = (a) => { const x = blq[a]; const n = num(x); const e = ETQ[a] || [a, 'reservas', null]; const s7 = num(d7[a]);
+      return '<div><b>' + (n === null ? '—' : esc(String(n))) + '</b><span>' + esc(e[0] + ' · ' + e[1]) + '</span>'
+        + '<span>' + esc((e[2] && x && x.personas > 0 ? x.personas + ' ' + e[2] + ' · ' : '') + '7 d: ' + (s7 === null ? '—' : s7)) + '</span>' + flecha(a, n) + '</div>'; };
+    const golf = areas.some((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a)) ? '' : '<div><b>—</b><span>Golf</span><span>hasta el 02/11</span></div>';
     el.hidden = false;
-    el.innerHTML = '<p class="bizcap">Reservas hoy por unidad · GolfManager ' + esc(hhmm(d.generado)) + (u.completo ? '' : ' · lectura incompleta') + '</p><div class="biz">' + areas.map(celda).join('') + golf + '</div>';
+    el.innerHTML = '<p class="bizcap">Reservas ' + cuando + ' por unidad · GolfManager ' + esc(hhmm(d.generado)) + (u.completo ? '' : ' · lectura incompleta') + '</p><div class="biz">' + areas.map(celda).join('') + golf + '</div>';
+    if (!u.completo) return { n: null, cuando };
+    return { n: areas.reduce((t, a) => t + (num(blq[a]) || 0), 0), cuando };
   }
-  // P71 (22/10/2026): dinero de ayer por unidad de negocio, copiado literal del Informe Diario (sync.datos.negocio.unidades).
-  function renderDinero() {
-    const el = $('#bizdin'); const s = state.sync; const n = s && s.datos && s.datos.negocio; const u = n && n.unidades;
-    if (!u || typeof u !== 'object' || localDay(s.at) !== ymd(today())) { el.hidden = true; return; }
-    const ETQ = { 'Gourmet Experience': 'Gourmet' };
-    const filas = Object.entries(u).filter(([, x]) => x && ((x.devengado || 0) !== 0 || (x.ventas_netas || 0) !== 0))
-      .sort((a, b) => ((b[1].devengado || 0) + (b[1].ventas_netas || 0)) - ((a[1].devengado || 0) + (a[1].ventas_netas || 0)));
-    if (!filas.length) { el.hidden = true; return; }
-    const celda = ([k, x]) => '<div><b>' + esc(eur(x.devengado) || '—') + '</b><span>' + esc((ETQ[k] || k) + ' · devengado') + '</span><span>' + esc('ventas ' + (eur(x.ventas_netas) || '—') + (x.sin_cobro ? ' · sin cobrar ' + eur(x.sin_cobro) : '')) + '</span></div>';
-    const resto = n.unidades_sin_datos ? '<div><b>—</b><span>Golf y resto · hasta el 02/11</span></div>' : '';
-    el.hidden = false;
-    el.innerHTML = '<p class="bizcap">Dinero de ayer por unidad · devengado sin IVA; ventas con IVA' + (n.fecha_datos ? ' · ' + esc(fmtShort(n.fecha_datos)) : '') + '</p><div class="biz">' + filas.map(celda).join('') + resto + '</div>';
-  }
-  function renderBiz() {
-    renderReservas();
-    renderDinero();
-    const el = $('#biz'); const s = state.sync; const n = s && s.datos && s.datos.negocio;
-    if (!n || localDay(s.at) !== ymd(today())) { el.hidden = true; return; }
+  function renderTotal(res) {
+    const el = $('#biztot'); const s = state.sync; const n = s && s.datos && s.datos.negocio;
+    const din = n && localDay(s.at) === ymd(today()) ? eur(n.devengado_ayer) : null;
+    const totRes = res ? res.n : null;
+    if (totRes == null && !din) { el.hidden = true; return; }
     const cells = [];
-    if (n.green_fees_ayer != null) cells.push(['Green fees ayer', String(n.green_fees_ayer)]);
-    if (n.ocupacion_hoy != null) cells.push(['Ocupación hoy', n.ocupacion_hoy + ' %']);
-    if (eur(n.devengado_ayer)) cells.push(['Devengado ayer', eur(n.devengado_ayer)]);
-    if (eur(n.cobrado_ayer)) cells.push(['Cobrado ayer', eur(n.cobrado_ayer)]);
-    if (!cells.length) { el.hidden = true; return; }
+    cells.push('<div><b>' + (totRes == null ? '—' : esc(String(totRes))) + '</b><span>reservas ' + (res ? res.cuando : 'hoy') + ' · total</span></div>');
+    cells.push('<div><b>' + esc(din || '—') + '</b><span>devengado ayer · total' + (n && n.fecha_datos ? ' · ' + esc(fmtShort(n.fecha_datos)) : '') + '</span>'
+      + (n && n.unidades_sin_datos ? '<span>sin Golf ni resto hasta el 02/11</span>' : '') + '</div>');
     el.hidden = false;
-    el.innerHTML = cells.slice(0, 4).map(([k, v]) => '<div><b>' + esc(v) + '</b><span>' + esc(k) + '</span></div>').join('');
+    el.innerHTML = '<div class="biz tot">' + cells.join('') + '</div>';
   }
+  function renderBiz() { renderTotal(renderReservas()); }
   function renderSemana() {
     const w = state.semana; const box = $('#semanaFold');
     if (!w) { box.hidden = true; return; }

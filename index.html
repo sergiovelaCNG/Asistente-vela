@@ -87,7 +87,12 @@ h1 em { font-style: normal; }
 .biz b { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .biz span { font-size: 12px; color: var(--on-green-mut); }
 .bizcap { margin: 0 -18px; padding: 8px 18px 0; font-size: 11px; letter-spacing: .02em; color: var(--on-green-mut); background: rgba(0, 0, 0, .12); border-top: 1px solid rgba(255, 255, 255, .16); }
-#bizres .biz, #bizdin .biz { border-top: 0; }
+#bizres .biz { border-top: 0; }
+.biz.tot { background: rgba(0, 0, 0, .22); }
+.biz.tot b { font-size: 18px; }
+.biz .cmp { font-size: 11px; font-weight: 600; color: var(--on-green-mut); }
+.biz .cmp.up { color: #b8f5c8; }
+.biz .cmp.dn { color: #ffd0c4; }
 .fresh { font-size: 13px; color: var(--muted); margin: -16px 4px 0; }
 .fresh:empty { display: none; }
 .fresh.late { color: var(--crit); font-weight: 600; background: var(--crit-soft); padding: 8px 12px; border-radius: var(--r-sm); margin: -12px 0 0; }
@@ -328,9 +333,8 @@ details.fold > .fl, details.fold > div { padding: 0 16px 8px; }
     </div>
     <h1 id="greet">Hola, Sergio</h1>
     <nav class="score" id="score" aria-label="Tu día en cifras"></nav>
-    <div class="biz" id="biz" hidden></div>
-    <div id="bizdin" hidden></div>
     <div id="bizres" hidden></div>
+    <div id="biztot" hidden></div>
   </header>
   <p class="fresh" id="fresh" aria-live="polite"></p>
   <div class="banner" id="banner" hidden></div>
