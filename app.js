@@ -240,11 +240,13 @@
   function renderLibreta() {
     // Libreta V2 (18/10/2026 · Sr. Vela): sin párrafos dictados y sin lo ya hecho. Solo lo soltado en los últimos 7 días que sigue abierto
     // (las ideas van en «Ideas por tema»), más las notas que aún se están ordenando para que conste que han llegado.
-    const desde = ymd(addDays(today(), -7)); const vistos = new Set(); const filas = []; const ordenando = [];
+    const desde = ymd(addDays(today(), -7)); const vistos = new Set(); const filas = []; const ordenando = []; const reuniones = [];
     state.libreta.forEach((l) => {
       if (l.estado !== 'ordenada') { ordenando.push(l); return; }
       if (!l.at || localDay(l.at) < desde) return;
       (Array.isArray(l.salidas) ? l.salidas : []).forEach((o) => {
+        // P83: reuniones dictadas que ya están en el calendario (hasta que pasen)
+        if (o && o.tipo === 'reunion' && o.evento_id) { if (o.fecha_limite >= ymd(today()) && !vistos.has('ev:' + o.evento_id)) { vistos.add('ev:' + o.evento_id); reuniones.push(o); } return; }
         if (!o || !o.item_id || vistos.has(o.item_id) || o.tipo === 'idea') return;
         const it = state.items.find((x) => x.id === o.item_id);
         if (!it || !open(it) || it.tipo === 'idea') return;
@@ -255,7 +257,14 @@
     const htmlOrd = ordenando.map((l) => { const t = String(l.texto || '').replace(/\s+/g, ' ').trim(); return '<li><span class="kind">Ordenando</span><span class="muted">' + esc(t.length > 70 ? t.slice(0, 70) + '…' : t) + '</span></li>'; }).join('');
     const htmlFil = filas.map(({ it, o, at }) => '<li data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como hecha"></button><span class="t" data-action="edit"><span class="kind">' + esc(KIND[it.tipo] || it.tipo || 'Tarea') + '</span> ' + esc(o.sumado ? (o.relacionado || it.titulo) : it.titulo) +
       (it.persona ? ' · ' + esc(it.persona) : '') + (o.sumado ? ' <span class="link">· añadido</span>' : '') + '</span><span class="r">' + esc(it.fecha_limite ? relDate(it.fecha_limite) : cuando(at)) + '</span></li>').join('');
-    $('#libreta').innerHTML = (htmlOrd ? '<ul class="outs">' + htmlOrd + '</ul>' : '') + (htmlFil ? '<ul class="fl">' + htmlFil + '</ul>' :
+    reuniones.sort((x, y) => (x.fecha_limite + x.hora).localeCompare(y.fecha_limite + y.hora));
+    const htmlReu = reuniones.map((o) => '<li class="plain"><span><span class="kind">Reunión</span> ' + esc(o.titulo) +
+      (o.ya_estaba ? ' <span class="link">· ya estaba en tu calendario</span>' : ' <span class="link">· puesta en tu calendario</span>') +
+      (Array.isArray(o.invitados) && o.invitados.length ? '<br><span class="muted">Invitación enviada a: ' + esc(o.invitados.map((e) => e.split('@')[0].split('.').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')).join(', ')) + '</span>' : '') +
+      (Array.isArray(o.sin_invitar) && o.sin_invitar.length ? '<br><span class="pend">Sin invitar: ' + esc(o.sin_invitar.join(' · ')) + '</span>' : '') +
+      (Array.isArray(o.choca) && o.choca.length ? '<br><span class="pend">Coincide con: ' + esc(o.choca.join(' · ')) + '</span>' : '') + '</span>' +
+      '<span class="r">' + esc(relDate(o.fecha_limite) + ' · ' + (o.hora || '')) + (o.enlace ? ' <a class="mini" href="' + esc(o.enlace) + '" target="_blank" rel="noopener">Calendar</a>' : '') + '</span></li>').join('');
+    $('#libreta').innerHTML = (htmlOrd ? '<ul class="outs">' + htmlOrd + '</ul>' : '') + (htmlReu || htmlFil ? '<ul class="fl">' + htmlReu + htmlFil + '</ul>' :
       (htmlOrd ? '' : '<p class="empty-s">Nada pendiente de lo que has soltado esta semana.</p>'));
     const ideas = cng().filter((it) => open(it) && it.tipo === 'idea'); const by = {};
     ideas.forEach((it) => { const t = it.tema || 'Sin tema'; (by[t] = by[t] || []).push(it); });
