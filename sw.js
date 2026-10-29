@@ -1,6 +1,6 @@
 // Despacho · service worker: guarda la carcasa de la app para que abra rápido y sin cobertura.
 // Los datos siempre vienen de Supabase (no se guardan aquí).
-const CACHE = 'despacho-v15';
+const CACHE = 'despacho-v16';
 const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

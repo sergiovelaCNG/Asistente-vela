@@ -190,6 +190,11 @@ section { display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 1
 .kpis b { font-size: 18px; font-variant-numeric: tabular-nums; }
 .kpis span { font-size: 12.5px; color: var(--muted); }
 
+.tdia { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.tdia th, .tdia td { padding: 4px 0; text-align: right; border-top: 1px solid var(--line-2); }
+.tdia thead th { font-size: 12px; color: var(--muted); font-weight: 600; border-top: 0; }
+.tdia tbody th { text-align: left; font-weight: 500; }
+.tdia td:nth-child(3) { font-weight: 700; color: var(--green-2); }
 /* ---- Turnos (P81) ---- */
 .turnos { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); padding: 0 16px; box-shadow: var(--shadow); }
 .tdep { padding: 10px 0 8px; border-top: 1px solid var(--line-2); }

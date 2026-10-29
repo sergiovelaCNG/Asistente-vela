@@ -460,6 +460,21 @@
     $('#h-op').textContent = noche ? 'Operación de mañana' : 'Operación de hoy';
     $('#opSub').textContent = hoyS && hoyS.informe_hora ? 'informe de las ' + hoyS.informe_hora : '';
     const cards = [];
+    // P86 (29/10/2026): Hoy en el centro — ventas registradas de hoy (total) y lo ya dado hoy por unidad (GolfManager vía D4).
+    // Siempre del día de hoy, también por la noche (es el cierre del día). Sin capacidad conocida no se da %, solo dadas de reservadas.
+    const vd = state.vivo && state.vivo.datos; const vu = vd && vd.fecha === ymd(today()) ? vd.unidades : null;
+    if (vu) {
+      const vh = vu.ventas_hoy; const hh = vu.hoy_hechas || {}; const hb = vu.hoy || {};
+      // Tabla: total del día, lo ya dado (empezado a la hora de la lectura) y lo que queda.
+      const FIL = [['Escuela', 'reservas', 'Clases'], ['Escuela', 'personas', 'Alumnos'], ['Fitting', 'reservas', 'Sesiones de fitting'], ['Gourmet Experience', 'reservas', 'Bahías de Gourmet'], ['Gourmet Experience', 'personas', 'Personas en Gourmet']];
+      const filas = FIL.filter(([k, c]) => hb[k] && hb[k][c] > 0).map(([k, c, et]) => { const t = hb[k][c]; const h = (hh[k] && hh[k][c]) || 0;
+        return '<tr><th>' + et + '</th><td>' + t + '</td><td>' + h + '</td><td>' + Math.max(0, t - h) + '</td></tr>'; }).join('');
+      const din = vh && vh.version === 'P86' ? '<p class="sem"><b>' + esc(eur(vh.total) || '—') + '</b> vendido hoy</p>' + (typeof vh.anticipada === 'number' && vh.anticipada > 0 && typeof vh.total === 'number' ? '<p>de ello <b>' + esc(eur(vh.anticipada)) + '</b> para otros días (reservas futuras, p. ej. Gourmet) y <b>' + esc(eur(vh.total - vh.anticipada)) + '</b> de hoy</p>' : '') + '<p class="muted">Con IVA · sin borradores ni recargas' + (vh.completo === false ? ' · lectura incompleta' : '') + '</p>'
+        : '<p class="muted">Ventas de hoy: no disponibles en esta lectura.</p>';
+      const cuerpo = din + (filas ? '<table class="tdia"><thead><tr><th></th><th>Hoy</th><th>Ya dadas</th><th>Quedan</th></tr></thead><tbody>' + filas + '</tbody></table>'
+        : '<p class="muted">Hoy no hay clases ni sesiones reservadas.</p>');
+      cards.push(cardOp('Hoy en el centro · ' + esc(hhmm(vd.generado)), cuerpo, 'Ventas registradas en GolfManager (no es contabilidad). Golf desde el 02/11.'));
+    }
     // Campo (parte del día: siempre el de hoy; por la noche se avisa de que es el de hoy)
     const c = hoyS && hoyS.campo;
     if (c && (c.semaforo || c.resumen)) {
