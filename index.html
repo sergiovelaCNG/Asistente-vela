@@ -237,6 +237,12 @@ section { display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 1
 .note { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
 .state { font-size: 13px; font-weight: 600; white-space: nowrap; text-align: right; color: var(--flag); }
 .state.done { color: var(--ok); }
+.state.late { color: var(--crit); }
+/* P88 · cierre semanal */
+.fl li .sub { display: block; font-size: 13px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.fl li .r b { color: var(--ink); font-size: 15px; font-weight: 700; }
+.fl li .cmp { display: block; font-size: 12px; font-weight: 500; }
+.fl li .cmp.up { color: var(--ok); } .fl li .cmp.dn { color: var(--crit); }
 .del .acts { grid-column: 2 / -1; margin-top: 4px; }
 .tick { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); background: transparent; padding: 0; margin-top: 1px; flex: none; }
 .tick:hover, .tick:focus-visible { border-color: var(--green-2); background: var(--green-soft); }

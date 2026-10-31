@@ -96,6 +96,12 @@
       .filter((it) => it.prioridad === 'urgente' || it.prioridad === 'alta' || (daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) <= 1))
       .sort((a, b) => urgency(a) - urgency(b)).slice(0, 3);
   }
+  // P88 (31/10/2026 · Sr. Vela): encargos con el plazo vencido (2 días laborables por defecto) suben a «A tu firma». Solo aviso:
+  // nunca se prepara un recordatorio sin que Sergio pulse «Recordar».
+  function vencidosEnc() {
+    return cng().filter((it) => open(it) && it.tipo === 'seguimiento' && !snoozed(it) && daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) <= 0)
+      .sort((a, b) => String(a.fecha_limite).localeCompare(String(b.fecha_limite))).slice(0, 3);
+  }
   function pendingRequest(it) { return state.solicitudes.find((s) => s.asunto_id === it.id && s.estado === 'pendiente'); }
   function chipsFor(it) {
     const c = []; const n = daysUntil(it.fecha_limite);
@@ -123,10 +129,27 @@
     const cerradoEn = (l) => { const w = pal(l); return cerrados.some((it) => { let n = 0; pal(it.titulo).forEach((x) => { if (w.has(x)) n++; }); return n >= 2; }); };
     el.innerHTML = lines.map((l) => '<p' + (cerrados.length && cerradoEn(l) ? ' class="done"' : '') + '>' + esc(l) + '</p>').join('') + despues + (at ? '<span class="when">Parte de ' + esc(at) + (cerrados.length ? '; lo de arriba puede estar ya resuelto' : '') + '</span>' : '');
   }
+  function encargoCard(it, i) {
+    const n = daysUntil(it.fecha_limite); const pr = pendingRequest(it);
+    const enc = it.extra && it.extra.encargo; const pasado = enc && enc.at ? localDay(enc.at) : localDay(it.created_at);
+    const quien = it.persona || (enc && enc.nombre) || 'el equipo';
+    const cuando = n === 0 ? 'vence hoy' : 'vencido ' + relDate(it.fecha_limite);
+    return '<article class="firma urg enc" data-id="' + esc(it.id) + '">' +
+      '<div class="fhead"><span class="fnum">' + (i + 1) + '</span><h3>' + esc(it.titulo) + '</h3>' +
+      '<p class="why">Encargo a <b>' + esc(quien) + '</b>' + (pasado ? ' desde el ' + esc(fmtShort(pasado)) : '') + ': ' + esc(cuando) + ' y sin respuesta del equipo.</p>' +
+      '<div class="chips"><span class="chip crit">encargo ' + esc(cuando) + '</span><span class="chip">' + esc(quien) + '</span></div></div>' +
+      (it.novedad ? '<p class="nov"><b>Último</b>' + esc(it.novedad) + '</p>' : '') +
+      (pr ? '<p class="pend">Recordatorio pedido a las ' + hhmm(pr.at) + ': estará en tus borradores de Gmail en unos segundos.</p>' : '') +
+      '<div class="acts">' + (pr ? '' : '<button class="btn go" data-action="nudge">Recordar</button>') +
+      (it.enlace ? '<a class="btn ghost" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
+      '<button class="btn" data-action="done">Hecho</button><button class="btn ghost" data-action="later">Mañana</button>' +
+      '<button class="btn ghost" data-action="edit">Editar</button></div></article>';
+  }
   function renderFirma() {
-    const list = firmaList();
-    $('#firmaN').textContent = list.length ? 'por urgencia' : '';
-    $('#firma').innerHTML = list.length ? list.map((it, i) => {
+    const list = firmaList(); const venc = vencidosEnc();
+    $('#firmaN').textContent = list.length || venc.length ? 'por urgencia' : '';
+    const encHtml = venc.map((it, j) => encargoCard(it, list.length + j)).join('');
+    $('#firma').innerHTML = (list.length ? list.map((it, i) => {
       const n = daysUntil(it.fecha_limite); const urg = it.prioridad === 'urgente' || (n !== null && n <= 0);
       const pr = pendingRequest(it);
       return '<article class="firma' + (urg ? ' urg' : '') + '" data-id="' + esc(it.id) + '">' +
@@ -139,7 +162,7 @@
         '<button class="btn" data-action="done">Hecho</button><button class="btn ghost" data-action="later">Mañana</button>' +
         (it.enlace ? '<a class="btn ghost" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
         '<button class="btn ghost" data-action="edit">Editar</button></div></article>';
-    }).join('') : '<p class="empty-s">Nada urgente que firmar. Lo demás está en «Tus tareas».</p>';
+    }).join('') : '') + encHtml || '<p class="empty-s">Nada urgente que firmar. Lo demás está en «Tus tareas».</p>';
     const fallos = state.solicitudes.filter((s) => s.estado === 'error');
     if (fallos.length) $('#firma').innerHTML = fallos.map((s) => { const it = state.items.find((x) => x.id === s.asunto_id); return '<p class="pend">No pude preparar el ' + (s.tipo === 'reenvio' ? 'reenvío' : 'borrador') + (it ? ' de «' + esc(it.titulo) + '»' : s.enlace ? ' del correo de «Equipo»' : '') + ': ' + esc(s.resultado || 'error') + '</p>'; }).join('') + $('#firma').innerHTML;
   }
@@ -209,13 +232,16 @@
     $('#delN').textContent = list.length || '';
     $('#delegado').innerHTML = list.length ? list.map((it) => {
       const who = it.tipo === 'pedido' ? (it.proveedor || 'Proveedor') + (it.persona ? ' · ' + it.persona : '') : (it.persona || 'Sin asignar');
-      const st = it.tipo === 'pedido' ? (PED[it.pedido_estado] || 'pedido') + (it.pedido_estado_at ? ' · ' + ago(it.pedido_estado_at) : '') : it.fecha_limite ? 'para ' + relDate(it.fecha_limite) : 'desde ' + ago(it.created_at);
+      // P88: el plazo del encargo se lee como plazo («vence hoy», «vencido hace 2 d»), no como «para hace 2 d».
+      const nd = daysUntil(it.fecha_limite);
+      const st = it.tipo === 'pedido' ? (PED[it.pedido_estado] || 'pedido') + (it.pedido_estado_at ? ' · ' + ago(it.pedido_estado_at) : '')
+        : nd === null ? 'desde ' + ago(it.created_at) : nd < 0 ? 'vencido ' + relDate(it.fecha_limite) : nd === 0 ? 'vence hoy' : 'plazo ' + relDate(it.fecha_limite);
       const pr = pendingRequest(it);
       return '<div class="del" data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como resuelto"></button>' +
         '<div><span class="who">' + esc(who) + '</span><p class="what">' + esc(it.titulo) + '</p>' +
         (it.novedad ? '<p class="note">' + esc(it.novedad) + '</p>' : it.detalle ? '<p class="note">' + esc(it.detalle) + '</p>' : '') +
         (pr ? '<p class="pend">Recordatorio pedido: estará en tus borradores en menos de una hora.</p>' : '') + '</div>' +
-        '<span class="state' + (it.pedido_estado === 'entregado' ? ' done' : '') + '">' + esc(st) + '</span>' +
+        '<span class="state' + (it.pedido_estado === 'entregado' ? ' done' : it.tipo !== 'pedido' && nd !== null && nd <= 0 ? ' late' : '') + '">' + esc(st) + '</span>' +
         '<div class="acts">' + (it.tipo !== 'pedido' && !pr ? '<button class="mini" data-action="nudge">Recordar</button>' : '') +
           (it.tracking ? '<a class="mini" href="' + esc(it.tracking) + '" target="_blank" rel="noopener">Seguimiento</a>' : '') +
           (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Correo</a>' : '') +
@@ -362,7 +388,7 @@
   // Tarjeta de juego (V2 22/10/2026): las cuatro cifras del día; cada casilla lleva a su sección.
   function renderScore() {
     const hoy = ymd(today()), fin = ymd(addDays(today(), 14)); const now = new Date();
-    const firma = firmaList().length;
+    const firma = firmaList().length + vencidosEnc().length;
     const reun = state.events.filter((e) => e.dia === hoy && !e.todo_el_dia && !isTorneo(e) && (!e.fin || new Date(e.fin) > now)).length;
     const r = state.revision; const eq = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo.length : null;
     const tor = new Set(state.events.filter((e) => isTorneo(e) && (e.dia_fin || e.dia) >= hoy && e.dia <= fin).map((e) => e.dia + e.titulo)).size;
@@ -548,28 +574,53 @@
       tiempoCache = { at: Date.now(), dias }; pinta();
     } catch (e) { /* informativo: si falla, no se muestra */ }
   }
+  // P88 (31/10/2026 · Sr. Vela): cierre semanal calculado en el momento desde los datos (función semana_resumen de Supabase, sin IA).
+  // Lunes: semana anterior completa; resto de días: semana en curso. Comparativa con el mismo tramo de la semana anterior.
+  // Desplegado de viernes a lunes; plegado el resto. Sin dato = «no disponible», nunca 0 inventado.
+  let semanaAbierta = false;
   function renderSemana() {
     const w = state.semana; const box = $('#semanaFold');
-    if (!w) { box.hidden = true; return; }
+    if (!w || w.version !== 'P88') { box.hidden = true; return; }
     box.hidden = false;
-    $('#semanaLine').textContent = 'Tu semana' + (w.desde && w.hasta ? ' (' + fmtShort(w.desde) + ' a ' + fmtShort(w.hasta) + ')' : '');
-    const li = (t, r) => '<li class="plain"><span>' + t + '</span><span class="r">' + esc(r || '') + '</span></li>';
-    const lista = (arr) => (Array.isArray(arr) ? arr : []).map((x) => esc(typeof x === 'string' ? x : (x.titulo || x.nombre || '') + (x.persona ? ' (' + x.persona + ')' : '') + (x.dia ? ' · ' + x.dia : ''))).join('<br>');
-    const c = w.cerradas; const cn = typeof c === 'object' && c ? c.total ?? c.n : c; const auto = typeof c === 'object' && c ? c.solos ?? c.auto : null;
+    const dow = new Date().getDay();
+    if (!semanaAbierta) { semanaAbierta = true; box.open = dow === 5 || dow === 6 || dow === 0 || dow === 1; }
+    $('#semanaLine').textContent = (w.cerrada ? 'Semana pasada' : 'Tu semana') + ' · ' + fmtShort(w.desde) + ' a ' + fmtShort(w.hasta);
+    const N = (x) => typeof x === 'number' ? x : null;
+    const ref = w.cerrada ? 'semana anterior' : 'mismo tramo de la semana anterior';
+    const cmp = (a, b, bueno) => {
+      if (N(a) === null || N(b) === null) return '';
+      const d = a - b; const c = bueno && d > 0 ? ' up' : bueno && d < 0 ? ' dn' : '';
+      return '<span class="cmp' + c + '">' + (d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '= igual') + ' vs ' + ref + ' (' + b + ')</span>';
+    };
+    const num = (x) => N(x) === null ? 'no disponible' : String(x);
+    const fila = (t, sub, r, extra) => '<li class="plain"><span>' + t + (sub ? '<span class="sub">' + sub + '</span>' : '') + '</span><span class="r"><b>' + esc(r) + '</b>' + (extra || '') + '</span></li>';
+    const lista = (arr, f) => (Array.isArray(arr) ? arr : []).map(f).join('<br>');
+    const dd = (x) => x ? fmtShort(x) : '';
+    const an = w.anterior || {}; const eq = w.equipo || {};
     let html = '';
-    if (w.frase) html += '<li class="plain"><span><b>' + esc(w.frase) + '</b></span><span></span></li>';
-    if (cn != null) html += li('Cerradas', cn + (auto ? ' (' + auto + ' solas)' : ''));
-    if (w.entraron != null) html += li('Entraron', String(typeof w.entraron === 'object' ? w.entraron.total ?? '' : w.entraron));
-    if (Array.isArray(w.parados) && w.parados.length) html += li('Parados más de 7 días<br><span class="muted">' + lista(w.parados) + '</span>', String(w.parados.length));
-    if (Array.isArray(w.delegado_vencido) && w.delegado_vencido.length) html += li('Delegado vencido<br><span class="muted">' + lista(w.delegado_vencido) + '</span>', String(w.delegado_vencido.length));
-    if (Array.isArray(w.torneos_proxima) && w.torneos_proxima.length) html += li('Torneos de la semana que viene<br><span class="muted">' + lista(w.torneos_proxima) + '</span>', String(w.torneos_proxima.length));
-    $('#semana').innerHTML = html || '<li class="plain"><span class="muted">Sin datos de la semana.</span><span></span></li>';
+    html += fila('Cerradas por ti', N(w.cerradas_solas) ? w.cerradas_solas + (w.cerradas_solas === 1 ? ' se cerró sola' : ' se cerraron solas') : '', num(w.cerradas), cmp(w.cerradas, an.cerradas, true));
+    html += fila('Entraron nuevas', '', num(w.entraron), cmp(w.entraron, an.entraron, false));
+    html += fila('El equipo resolvió', N(eq.resueltos) === null ? 'sin revisiones del buzón esta semana' : 'hilos del buzón · ' + eq.dias_con_dato + (eq.dias_con_dato === 1 ? ' día con dato' : ' días con dato') + (N(eq.pendientes_ahora) !== null ? ' · ' + eq.pendientes_ahora + (eq.pendientes_ahora === 1 ? ' pendiente ahora' : ' pendientes ahora') : ''), num(eq.resueltos), cmp(eq.resueltos, an.equipo_resueltos, true));
+    if (N(w.cerradas_personal)) html += fila('Personales cerradas', '', String(w.cerradas_personal));
+    if (Array.isArray(w.parados) && w.parados.length) html += fila('Parados más de 7 días', lista(w.parados, (x) => esc(x.titulo) + (x.persona ? ' · ' + esc(x.persona) : '') + ' · ' + x.dias + ' d'), String(w.parados.length));
+    if (Array.isArray(w.delegado_vencido) && w.delegado_vencido.length) html += fila('Encargos vencidos', lista(w.delegado_vencido, (x) => esc(x.titulo) + (x.persona ? ' · ' + esc(x.persona) : '') + ' · ' + esc(dd(x.fecha))), String(w.delegado_vencido.length));
+    const p = w.proxima || {};
+    html += '<li class="plain dia"><span class="label">Semana que viene · ' + esc(dd(p.desde)) + ' a ' + esc(dd(p.hasta)) + '</span><span></span></li>';
+    const pl = p.plazos || [], en = p.encargos || [], to = p.torneos || [];
+    if (pl.length) html += fila('Tus plazos', lista(pl, (x) => esc(dd(x.fecha)) + ' · ' + esc(x.titulo)), String(pl.length));
+    if (en.length) html += fila('Encargos que vencen', lista(en, (x) => esc(dd(x.fecha)) + ' · ' + esc(x.titulo) + (x.persona ? ' · ' + esc(x.persona) : '')), String(en.length));
+    if (to.length) html += fila('Torneos', lista(to, (x) => { const t = torneoName({ titulo: x.titulo }); return esc(x.dia_fin && x.dia_fin !== x.dia ? dd(x.dia) + '–' + parseYmd(x.dia_fin).getDate() : dd(x.dia)) + ' · ' + esc((t.codigo ? t.codigo + ' · ' : '') + t.nombre); }), String(to.length));
+    if (!pl.length && !en.length && !to.length) html += '<li class="plain"><span class="muted">Nada con fecha: ni plazos tuyos, ni encargos, ni torneos.</span><span></span></li>';
+    html += '<li class="plain"><span class="muted" style="font-size:12px">Calculado ' + esc(hhmm(w.calculado)) + ' con tus asuntos, el buzón y el calendario.</span><span></span></li>';
+    $('#semana').innerHTML = html;
   }
   function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
 
   // ---------- datos ----------
   function showBanner(msg, err) { const b = $('#banner'); b.textContent = msg; b.className = 'banner' + (err ? ' err' : ''); b.hidden = !msg; }
   async function loadTable(t) {
+    // P88: el cierre semanal se calcula en Supabase (semana_resumen) cada vez que se carga; ya no se lee de `cierres`.
+    if (t === 'semana') { const { data, error } = await sb.rpc('semana_resumen'); if (!error) state.semana = data || null; return; }
     const hoy = ymd(addDays(today(), -1));
     let q;
     if (t === 'asuntos') q = sb.from('asuntos').select('*');
@@ -579,7 +630,6 @@
     else if (t === 'revisiones') q = sb.from('revisiones').select('*').order('at', { ascending: false }).limit(1);
     else if (t === 'libreta') q = sb.from('libreta').select('*').order('at', { ascending: false }).limit(20);
     else if (t === 'sync') q = sb.from('sync').select('*').order('id', { ascending: false }).limit(1);
-    else if (t === 'cierres') q = sb.from('cierres').select('*').gte('fecha', ymd(addDays(today(), -7))).order('fecha', { ascending: false }).limit(7);
     else if (t === 'negocio_vivo') q = sb.from('negocio_vivo').select('*').eq('id', 'reservas').limit(1);
     else if (t === 'solicitudes') q = sb.from('solicitudes').select('*').or('estado.eq.pendiente,and(estado.eq.error,hecha_at.gt.' + new Date(Date.now() - 864e5).toISOString() + ')');
     else return;
@@ -594,16 +644,16 @@
     else if (t === 'solicitudes') state.solicitudes = data;
     else if (t === 'sync') state.sync = data[0] || null;
     else if (t === 'negocio_vivo') state.vivo = data[0] || null;
-    else if (t === 'cierres') { const s = data.find((c) => c.datos && c.datos.semana); state.semana = s ? { fecha: s.fecha, ...s.datos.semana } : null; }
   }
-  const TABLES = ['asuntos', 'agenda', 'prep', 'briefings', 'revisiones', 'libreta', 'solicitudes', 'sync', 'cierres', 'negocio_vivo'];
-  async function loadAll() { await Promise.all(TABLES.map(loadTable)); state.loaded = true; renderAll(); }
+  const TABLES = ['asuntos', 'agenda', 'prep', 'briefings', 'revisiones', 'libreta', 'solicitudes', 'sync', 'negocio_vivo'];
+  const SEMANA_DE = ['asuntos', 'agenda', 'revisiones'];
+  async function loadAll() { await Promise.all(TABLES.concat('semana').map(loadTable)); state.loaded = true; renderAll(); }
   let channel = null, reloadTimer = {};
   function subscribe() {
     if (channel) return;
     channel = sb.channel('despacho');
     TABLES.forEach((t) => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => {
-      clearTimeout(reloadTimer[t]); reloadTimer[t] = setTimeout(async () => { await loadTable(t); renderAll(); }, 250);
+      clearTimeout(reloadTimer[t]); reloadTimer[t] = setTimeout(async () => { await loadTable(t); if (SEMANA_DE.includes(t)) await loadTable('semana'); renderAll(); }, 250);
     }));
     channel.subscribe();
   }
@@ -780,8 +830,8 @@
     state.fwdItem = it;
     $('#fTitle').textContent = 'Pasar al equipo · ' + (it.titulo || '');
     $('#fAyuda').textContent = it.equipo
-      ? 'Reenvía el hilo completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque.'
-      : 'Reenvía el correo original completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. El asunto pasa a «Delegado y en espera».';
+      ? 'Reenvía el hilo completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. Lo vigilo como encargo durante 2 días laborables: si el equipo responde se cierra solo; si no, te aviso en «A tu firma».'
+      : 'Reenvía el correo original completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. Pasa a «Delegado y en espera» con plazo de 2 días laborables: si el equipo responde se cierra solo; si no, te aviso en «A tu firma».';
     $('#fPara').value = 'info@cngolf.es'; $('#fOtroWrap').hidden = true; $('#fOtro').value = '';
     $('#fNota').value = ''; $('#fStatus').textContent = ''; $('#fPedir').disabled = false;
     if (!$('#overlay').hidden) closeEditor();
