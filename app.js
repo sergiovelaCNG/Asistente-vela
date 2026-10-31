@@ -381,48 +381,60 @@
     el.textContent = viejo ? 'Ojo: los datos del equipo son de ' + (hoy ? 'las ' : fmtShort(localDay(r.at)) + ', ') + hhmm(r.at) + '. La última comprobación no ha llegado.'
       : 'Equipo comprobado ' + (hoy ? 'a las ' + hhmm(r.at) : 'el ' + fmtShort(localDay(r.at))) + '.';
   }
-  // P79/P80 (27/10/2026): cabecera verde = reservas por unidad (hoy y próximos 7 días) y, debajo, un único total:
-  // reservas de hoy + dinero de ayer (devengado, cifra de cabecera del Informe Diario). Sin desglose económico.
-  // P80 (27/10/2026): desde las 19:00 se muestran las reservas de MAÑANA (D4 V1.1.0 → unidades.manana).
-  // Comparativa con el mismo día de la semana pasada a la misma hora (Supabase · reservas_historico), salvo Escuela.
+  // P87 (31/10/2026): cabecera verde = ocupación del día por unidad (por FECHA DE USO: quién está ese día en el centro,
+  // da igual cuándo se pagó; Gourmet solo abre jue-vie-sáb) → total de reservas → total facturado HOY (ventas registradas
+  // hoy en GolfManager, sean para hoy o para otro día). Orden fijo: Escuela clases · Alumnos · Gourmet personas · Fitting · Golf.
+  // Desde las 19:00 la ocupación es la de MAÑANA (P80); lo facturado es siempre de hoy. Sin dato = «—», nunca 0 inventado.
+  // Comparativa con la semana pasada (P80) solo en Gourmet (bahías), Fitting y Golf; nunca en Escuela.
   function renderReservas() {
     const el = $('#bizres'); const v = state.vivo; const d = v && v.datos; const u = d && d.unidades;
     if (!u || !u.hoy || d.fecha !== ymd(today())) { el.hidden = true; return null; }
     const noche = new Date().getHours() >= 19 && u.manana && typeof u.manana === 'object';
     const blq = noche ? u.manana : u.hoy; const cuando = noche ? 'mañana' : 'hoy';
     const cmp = d.comparativa && d.comparativa[noche ? 'manana' : 'hoy'];
-    const ETQ = { 'Escuela': ['Escuela', 'clases', 'alumnos'], 'Gourmet Experience': ['Gourmet', 'bahías', 'personas'], 'Fitting': ['Fitting', 'sesiones', null] };
     const d7 = u.d7 || {};
-    const num = (x) => x && typeof x.reservas === 'number' ? x.reservas : (u.completo ? 0 : null);
-    const areas = Array.from(new Set(Object.keys(blq).concat(Object.keys(d7))))
-      .sort((a, b) => ((num(blq[b]) || 0) - (num(blq[a]) || 0)) || ((num(d7[b]) || 0) - (num(d7[a]) || 0)));
+    const val = (x, c) => x && typeof x[c] === 'number' ? x[c] : (u.completo ? 0 : null);
     const ref = cmp && cmp.fecha_ref ? fmtShort(cmp.fecha_ref) : '';
-    const flecha = (a, n) => {
-      if (a === 'Escuela' || n === null || !cmp || !cmp.unidades || !cmp.unidades[a]) return '';
+    const flecha = (a, n, que) => {
+      if (n === null || !cmp || !cmp.unidades || !cmp.unidades[a]) return '';
       const sp = cmp.unidades[a].semana_pasada; if (typeof sp !== 'number') return '';
       const dl = n - sp; const c = dl > 0 ? 'up' : dl < 0 ? 'dn' : 'eq';
-      return '<span class="cmp ' + c + '">' + (dl > 0 ? '▲ +' + dl : dl < 0 ? '▼ ' + dl : '= ') + ' vs ' + esc(ref) + ' (' + sp + ')</span>';
+      return '<span class="cmp ' + c + '">' + (dl > 0 ? '▲ +' + dl : dl < 0 ? '▼ ' + dl : '= ') + (que ? ' ' + que : '') + ' vs ' + esc(ref) + ' (' + sp + ')</span>';
     };
-    const celda = (a) => { const x = blq[a]; const n = num(x); const e = ETQ[a] || [a, 'reservas', null]; const s7 = num(d7[a]);
-      return '<div><b>' + (n === null ? '—' : esc(String(n))) + '</b><span>' + esc(e[0] + ' · ' + e[1]) + '</span>'
-        + '<span>' + esc((e[2] && x && x.personas > 0 ? x.personas + ' ' + e[2] + ' · ' : '') + '7 d: ' + (s7 === null ? '—' : s7)) + '</span>' + flecha(a, n) + '</div>'; };
-    const golf = areas.some((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a)) ? '' : '<div><b>—</b><span>Golf</span><span>hasta el 02/11</span></div>';
+    const fN = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const cel = (n, et, sub, extra) => '<div><b>' + (n === null ? '—' : esc(fN(n))) + '</b><span class="et">' + esc(et) + '</span>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + (extra || '') + '</div>';
+    const s7 = (a, c) => { const x = val(d7[a], c); return '7 d · ' + (x === null ? '—' : fN(x)); };
+    const E = 'Escuela', G = 'Gourmet Experience', F = 'Fitting';
+    const golfKey = Object.keys(blq).concat(Object.keys(d7)).find((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a));
+    const gB = val(blq[G], 'reservas');
+    const fijas = [E, G, F, golfKey];
+    const otras = Object.keys(blq).filter((a) => !fijas.includes(a));
+    const totN = u.completo ? Object.keys(blq).reduce((t, a) => t + (val(blq[a], 'reservas') || 0), 0) : null;
+    // Rejilla 3 × 2: la sexta casilla es el total de reservas (antes iba aparte).
+    const cells = [
+      cel(val(blq[E], 'reservas'), 'clases', s7(E, 'reservas')),
+      cel(val(blq[E], 'personas'), 'alumnos', s7(E, 'personas')),
+      cel(val(blq[G], 'personas'), 'en Gourmet', (gB === null ? '—' : gB) + (gB === 1 ? ' bahía' : ' bahías'), flecha(G, gB)),
+      cel(val(blq[F], 'reservas'), 'fitting', s7(F, 'reservas'), flecha(F, val(blq[F], 'reservas'))),
+      golfKey ? cel(val(blq[golfKey], 'reservas'), 'golf', s7(golfKey, 'reservas'), flecha(golfKey, val(blq[golfKey], 'reservas')))
+        : '<div><b>—</b><span class="et">golf</span><span>hasta el 02/11</span></div>'
+    ];
+    // Unidades nuevas que aparezcan en GolfManager no se pierden: van detrás, con su nº de reservas.
+    otras.forEach((a) => cells.push(cel(val(blq[a], 'reservas'), a, s7(a, 'reservas'))));
+    cells.push('<div class="sum"><b>' + (totN === null ? '—' : esc(fN(totN))) + '</b><span class="et">reservas · total</span></div>');
     el.hidden = false;
-    el.innerHTML = '<p class="bizcap">Reservas ' + cuando + ' por unidad · GolfManager ' + esc(hhmm(d.generado)) + (u.completo ? '' : ' · lectura incompleta') + '</p><div class="biz">' + areas.map(celda).join('') + golf + '</div>';
+    el.innerHTML = '<p class="bizcap">Ocupación ' + cuando + ' · GolfManager ' + esc(hhmm(d.generado)) + (u.completo ? '' : ' · <b>lectura incompleta</b>') + '</p><div class="biz occ">' + cells.join('') + '</div>';
     if (!u.completo) return { n: null, cuando };
-    return { n: areas.reduce((t, a) => t + (num(blq[a]) || 0), 0), cuando };
+    return { n: Object.keys(blq).reduce((t, a) => t + (val(blq[a], 'reservas') || 0), 0), cuando };
   }
+  // Total de reservas del día mostrado + total facturado HOY (ventas_hoy de D4, P86: con IVA, sin borradores ni recargas).
+  // Lo facturado no tiene por qué cuadrar con la ocupación: incluye lo cobrado hoy para otros días (p. ej. Gourmet).
   function renderTotal(res) {
-    const el = $('#biztot'); const s = state.sync; const n = s && s.datos && s.datos.negocio;
-    const din = n && localDay(s.at) === ymd(today()) ? eur(n.devengado_ayer) : null;
-    const totRes = res ? res.n : null;
-    if (totRes == null && !din) { el.hidden = true; return; }
-    const cells = [];
-    cells.push('<div><b>' + (totRes == null ? '—' : esc(String(totRes))) + '</b><span>reservas ' + (res ? res.cuando : 'hoy') + ' · total</span></div>');
-    cells.push('<div><b>' + esc(din || '—') + '</b><span>devengado ayer · total' + (n && n.fecha_datos ? ' · ' + esc(fmtShort(n.fecha_datos)) : '') + '</span>'
-      + (n && n.unidades_sin_datos ? '<span>sin Golf ni resto hasta el 02/11</span>' : '') + '</div>');
+    const el = $('#biztot'); const vd = state.vivo && state.vivo.datos;
+    const vh = vd && vd.fecha === ymd(today()) && vd.unidades ? vd.unidades.ventas_hoy : null;
+    const fac = vh && vh.version === 'P86' && vh.fecha === ymd(today()) ? eur(vh.total) : null;
     el.hidden = false;
-    el.innerHTML = '<div class="biz tot">' + cells.join('') + '</div>';
+    el.innerHTML = '<div class="fact"><span class="et">Facturado hoy</span><b>' + esc(fac || '—') + '</b><span>' + (fac ? 'con IVA · ' + esc(hhmm(vd.generado)) + (vh.completo === false ? ' · incompleto' : '') : 'no disponible') + '</span></div>';
   }
   function renderBiz() { renderTotal(renderReservas()); }
   // P81 (28/10/2026): quién trabaja en Caddy Master, Gestión de Juego y Fitting (turnos de GolfManager vía D4).
@@ -460,6 +472,7 @@
     $('#h-op').textContent = noche ? 'Operación de mañana' : 'Operación de hoy';
     $('#opSub').textContent = hoyS && hoyS.informe_hora ? 'informe de las ' + hoyS.informe_hora : '';
     const cards = [];
+    // V17 (31/10/2026): el total facturado sale solo en la cabecera; aquí queda el reparto y la tabla.
     // P86 (29/10/2026): Hoy en el centro — ventas registradas de hoy (total) y lo ya dado hoy por unidad (GolfManager vía D4).
     // Siempre del día de hoy, también por la noche (es el cierre del día). Sin capacidad conocida no se da %, solo dadas de reservadas.
     const vd = state.vivo && state.vivo.datos; const vu = vd && vd.fecha === ymd(today()) ? vd.unidades : null;
@@ -469,7 +482,7 @@
       const FIL = [['Escuela', 'reservas', 'Clases'], ['Escuela', 'personas', 'Alumnos'], ['Fitting', 'reservas', 'Sesiones de fitting'], ['Gourmet Experience', 'reservas', 'Bahías de Gourmet'], ['Gourmet Experience', 'personas', 'Personas en Gourmet']];
       const filas = FIL.filter(([k, c]) => hb[k] && hb[k][c] > 0).map(([k, c, et]) => { const t = hb[k][c]; const h = (hh[k] && hh[k][c]) || 0;
         return '<tr><th>' + et + '</th><td>' + t + '</td><td>' + h + '</td><td>' + Math.max(0, t - h) + '</td></tr>'; }).join('');
-      const din = vh && vh.version === 'P86' ? '<p class="sem"><b>' + esc(eur(vh.total) || '—') + '</b> vendido hoy</p>' + (typeof vh.anticipada === 'number' && vh.anticipada > 0 && typeof vh.total === 'number' ? '<p>de ello <b>' + esc(eur(vh.anticipada)) + '</b> para otros días (reservas futuras, p. ej. Gourmet) y <b>' + esc(eur(vh.total - vh.anticipada)) + '</b> de hoy</p>' : '') + '<p class="muted">Con IVA · sin borradores ni recargas' + (vh.completo === false ? ' · lectura incompleta' : '') + '</p>'
+      const din = vh && vh.version === 'P86' ? (typeof vh.anticipada === 'number' && vh.anticipada > 0 && typeof vh.total === 'number' ? '<p>De lo facturado hoy: <b>' + esc(eur(vh.anticipada)) + '</b> para otros días (reservas futuras, p. ej. Gourmet) · <b>' + esc(eur(vh.total - vh.anticipada)) + '</b> para hoy</p>' : '') + '<p class="muted">Con IVA · sin borradores ni recargas' + (vh.completo === false ? ' · lectura incompleta' : '') + '</p>'
         : '<p class="muted">Ventas de hoy: no disponibles en esta lectura.</p>';
       const cuerpo = din + (filas ? '<table class="tdia"><thead><tr><th></th><th>Hoy</th><th>Ya dadas</th><th>Quedan</th></tr></thead><tbody>' + filas + '</tbody></table>'
         : '<p class="muted">Hoy no hay clases ni sesiones reservadas.</p>');
