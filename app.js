@@ -11,10 +11,15 @@
   };
   const $ = (s, r) => (r || document).querySelector(s);
   // V3.1 · los desplegables con id recuerdan cómo los dejaste (solo en este navegador).
+  const openPref = {};
   document.querySelectorAll('details[id]').forEach((d) => {
-    try { const v = localStorage.getItem('dp.open.' + d.id); if (v === '1') d.open = true; else if (v === '0') d.open = false; } catch (e) {}
-    d.addEventListener('toggle', () => { try { localStorage.setItem('dp.open.' + d.id, d.open ? '1' : '0'); } catch (e) {} });
+    try { const v = localStorage.getItem('dp.open.' + d.id); if (v === '1') { d.open = true; openPref[d.id] = true; } else if (v === '0') { d.open = false; openPref[d.id] = true; } } catch (e) {}
+    d.addEventListener('toggle', () => { if (d.dataset.auto) { delete d.dataset.auto; return; } try { localStorage.setItem('dp.open.' + d.id, d.open ? '1' : '0'); } catch (e) {} });
   });
+  // Abierto por defecto según el dato (p. ej. Equipo cuando hay clientes esperando), salvo que ya lo hayas dejado como quieres.
+  function defaultOpen(id, val) { const d = document.getElementById(id); if (!d || openPref[id] || d.open === !!val) return; d.dataset.auto = '1'; d.open = !!val; }
+  // La barra de saltos abre el desplegable al que lleva.
+  document.addEventListener('click', (ev) => { const a = ev.target.closest('.jumps a'); if (!a) return; const t = document.querySelector(a.getAttribute('href')); const d = t && t.closest('details'); if (d && !d.open) d.open = true; });
   const sb = window.supabase.createClient(CONFIG.url, CONFIG.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   const state = { items: [], view: 'cng', events: [], prep: {}, briefing: null, revision: null, libreta: [], solicitudes: [], sync: null, semana: null, editing: null, busy: false, mailItem: null, loaded: false };
   const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
@@ -261,7 +266,8 @@
   }
   function renderDelegado() {
     const list = cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido')).sort((a, b) => urgency(a) - urgency(b));
-    $('#delN').textContent = list.length || '';
+    const venc = list.filter((it) => it.tipo !== 'pedido' && daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) <= 0).length; const ped = list.filter((it) => it.tipo === 'pedido').length;
+    $('#delN').textContent = list.length ? [(list.length - ped) + (list.length - ped === 1 ? ' encargo' : ' encargos'), venc ? venc + (venc === 1 ? ' vencido' : ' vencidos') : '', ped ? ped + (ped === 1 ? ' pedido' : ' pedidos') : ''].filter(Boolean).join(' · ') : 'no esperas nada de nadie';
     $('#delegado').innerHTML = list.length ? list.map((it) => {
       const who = it.tipo === 'pedido' ? (it.proveedor || 'Proveedor') + (it.persona ? ' · ' + it.persona : '') : (it.persona || 'Sin asignar');
       // P88: el plazo del encargo se lee como plazo («vence hoy», «vencido hace 2 d»), no como «para hace 2 d».
@@ -292,6 +298,7 @@
       rows.push({ d: it.fecha_limite, label: daysUntil(it.fecha_limite) < 0 ? 'vencido' : relDate(it.fecha_limite), n: it.titulo, k: it.tipo === 'vencimiento' ? 'vencimiento' : 'tuyo', cls: 'mine' + (daysUntil(it.fecha_limite) < 0 ? ' lim' : '') });
     });
     rows.sort((a, b) => a.d.localeCompare(b.d));
+    const rs = $('#radarS'); if (rs) { const nt = rows.filter((r) => r.cls === 'tor').length; const nm = rows.length - nt; rs.textContent = rows.length ? [nt ? nt + (nt === 1 ? ' torneo' : ' torneos') : '', nm ? nm + (nm === 1 ? ' plazo tuyo' : ' plazos tuyos') : ''].filter(Boolean).join(' · ') + ' en 14 días' : 'nada en los próximos 14 días'; }
     $('#radar').innerHTML = rows.length ? rows.map((r) => '<li class="' + r.cls + '"><span class="d">' + esc(r.label) + '</span><span class="n">' + esc(r.n) + '</span><span class="k">' + esc(r.k) + '</span></li>').join('')
       : '<li><span class="d">—</span><span class="n muted">Nada en los próximos 14 días.</span></li>';
   }
@@ -325,6 +332,7 @@
       '<span class="r">' + esc(relDate(o.fecha_limite) + ' · ' + (o.hora || '')) + (o.enlace ? ' <a class="mini" href="' + esc(o.enlace) + '" target="_blank" rel="noopener">Calendar</a>' : '') + '</span></li>').join('');
     $('#libreta').innerHTML = (htmlOrd ? '<ul class="outs">' + htmlOrd + '</ul>' : '') + (htmlReu || htmlRec ? '<ul class="fl">' + htmlReu + htmlRec + '</ul>' : '');
     const ideas = cng().filter((it) => open(it) && it.tipo === 'idea');
+    const ls = $('#libS'); if (ls) ls.textContent = [ideas.length ? ideas.length + (ideas.length === 1 ? ' idea' : ' ideas') : 'sin ideas apuntadas', ordenando.length ? ordenando.length + ' ordenando' : '', recordatorios.length ? recordatorios.length + (recordatorios.length === 1 ? ' aviso puesto' : ' avisos puestos') : ''].filter(Boolean).join(' · ');
     // V3 · ideas como notas: tema arriba, texto, fecha y «→ tarea» (la convierte en tarea sin pasar por Editar).
     ideas.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     $('#temas').innerHTML = ideas.length ? '<div class="notes">' + ideas.map((it) =>
@@ -399,7 +407,9 @@
       .sort((a, b) => (b.dias ?? -1) - (a.dias ?? -1));
     const res = Array.isArray(r.resueltos_equipo) ? r.resueltos_equipo : [];
     const cuando = r.at ? (localDay(r.at) === ymd(today()) ? 'hoy ' : fmtShort(localDay(r.at)) + ' ') + hhmm(r.at) : '';
-    $('#nEquipo').textContent = (pend.length ? pend.length + (pend.length === 1 ? ' pendiente' : ' pendientes') : 'al día') + (cuando ? ', revisado ' + cuando : '');
+    const viejo = pend.length ? pend.slice().sort((a, b) => (b.dias ?? -1) - (a.dias ?? -1))[0] : null;
+    $('#nEquipo').textContent = [pend.length ? pend.length + (pend.length === 1 ? ' cliente esperando' : ' clientes esperando') + (viejo && typeof viejo.dias === 'number' ? ' · el más antiguo ' + viejo.dias + ' d' : '') : 'al día', res.length ? res.length + (res.length === 1 ? ' resuelto hoy' : ' resueltos hoy') : '', cuando ? 'revisado ' + cuando : ''].filter(Boolean).join(' · ');
+    defaultOpen('dEq', pend.length > 0);
     const porB = {}; pend.forEach((p) => { const k = p.bandeja || 'Sin bandeja'; porB[k] = (porB[k] || 0) + 1; });
     const sum = Object.keys(porB).sort((a, b) => porB[b] - porB[a]).map((k) => '<span class="chip' + (k === 'Extranjeros' ? ' flag' : '') + '">' + esc(k) + ' ' + porB[k] + '</span>').join('');
     state.eqPend = pend;
@@ -607,7 +617,23 @@
     if (c && (c.semaforo || c.resumen)) {
       const sem = String(c.semaforo || '').toLowerCase();
       const cab = '<p class="sem ' + (SEMCLS[sem] || '') + '"><b>' + esc(c.semaforo || '—') + '</b>' + (typeof c.puntos === 'number' ? ' · ' + c.puntos + '/100' : '') + (c.tendencia ? ' · ' + esc(c.tendencia) : '') + '</p>';
-      const det = [c.resumen, c.instalaciones, c.buggies ? 'Buggies: ' + c.buggies : null, c.observaciones].filter(Boolean).map((x) => '<p>' + esc(x) + '</p>').join('');
+      // V3.2 (Sr. Vela): la tarjeta del campo, estructurada: estado · filas de dato (green, buggies, bandera) · aperturas · nota del parte.
+      const low = (x) => { const t = String(x || '').trim(); return /^[A-ZÁÉÍÓÚÑ0-9 º·,.:()-]+$/.test(t) && t.length > 3 ? t.charAt(0) + t.slice(1).toLowerCase() : t; };
+      const filas = [];
+      if (c.green != null && c.green !== '') filas.push(['Velocidad de green', esc(String(c.green))]);
+      if (c.buggies) filas.push(['Buggies', esc(low(c.buggies))]);
+      const obs = String(c.observaciones || '');
+      const band = obs.match(/bandera\s*:?\s*([0-9]+|[A-Za-z]+)/i);
+      if (band) filas.push(['Bandera', esc(band[1])]);
+      const resto = obs.replace(/posici[oó]n de bandera\s*:?\s*[^·]*·?\s*/i, '').trim();
+      if (resto) filas.push(['Nota', esc(low(resto))]);
+      const aper = String(c.instalaciones || '').split(/\s*·\s*/).map((x) => x.trim()).filter(Boolean).map((x) => {
+        const m = x.match(/^(.*?):\s*(?:abiert[oa]s?\s*)?(?:desde\s*(?:las\s*)?)?(\d{1,2}[:.]\d{2}|\d{1,2}\s*h|cerrad[oa])\s*$/i);
+        return m ? '<li><span>' + esc(low(m[1])) + '</span><b>' + esc(m[2].replace('.', ':')) + '</b></li>' : '<li><span>' + esc(low(x)) + '</span><b></b></li>';
+      }).join('');
+      const det = (filas.length ? '<div class="crows">' + filas.map(([k, v]) => '<div><span>' + k + '</span><b>' + v + '</b></div>').join('') + '</div>' : '') +
+        (aper ? '<ul class="aper">' + aper + '</ul>' : '') +
+        (c.resumen ? '<p class="muted" style="font-size:13px">' + esc(c.resumen) + '</p>' : '');
       cards.push(cardOp('Campo' + (noche ? ' · parte de hoy' : ''), cab + det, c.enlace ? '<a href="' + esc(c.enlace) + '" target="_blank" rel="noopener">Abrir el parte</a>' : '', SEMCLS[sem] || ''));
     } else cards.push(cardOp('Campo', '<p class="muted">' + (state.loaded ? 'Pendiente del Informe Diario (llega hacia las 09:00).' : 'Cargando…') + '</p>'));
     // Torneo del día: calendario + informe + GolfManager
