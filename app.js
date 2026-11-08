@@ -168,6 +168,9 @@
   }
   // Agenda: copia del calendario que mantienen las tareas automáticas.
   const isTorneo = (e) => !!e.torneo;
+  // P108 (08/11/2026 · Sr. Vela): un recordatorio dictado («recuérdame X a las 12») se pone en el calendario como evento corto «⏰ X»;
+  // en la app no cuenta como reunión y se enseña como aviso.
+  const isRecordatorio = (e) => /^\u23f0/.test(String(e.titulo || ''));
   function eventsOn(day) { return state.events.filter((e) => e.dia <= day && day <= (e.dia_fin || e.dia)); }
   function torneoName(e) { const s = String(e.titulo || '').trim(); const m = s.match(/^(PO|PR|PB|AB|A|B|F|P)\s+(.+)$/); return m ? { codigo: m[1], nombre: m[2] } : { codigo: null, nombre: s }; }
   function timeRange(e) {
@@ -206,7 +209,7 @@
     el.innerHTML = days.map(({ d, ds, evs }) => {
       evs.sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio));
       const cl = clashes(evs);
-      const reuniones = evs.filter((e) => !e.todo_el_dia && !isTorneo(e)).length, torneos = evs.filter(isTorneo).length;
+      const reuniones = evs.filter((e) => !e.todo_el_dia && !isTorneo(e) && !isRecordatorio(e)).length, torneos = evs.filter(isTorneo).length;
       const sinResp = evs.filter((e) => e.mi_respuesta === 'needsAction').length;
       const alerts = [];
       if (cl.size) alerts.push('se pisan ' + cl.size + ' reuniones');
@@ -215,14 +218,14 @@
       const title = (ds === ymd(today()) ? 'Hoy · ' : ds === ymd(addDays(today(), 1)) ? 'Mañana · ' : '') + DIAS[d.getDay()].replace(/^./, (c) => c.toUpperCase()) + ' ' + d.getDate();
       return '<div class="day"><div class="dayh"><h3>' + esc(title) + '</h3>' + (alerts.length ? '<span class="alert">' + esc(alerts.join(' · ')) + '</span>' : '') + '</div>' +
         evs.map((e) => {
-          const tor = isTorneo(e); const tn = tor ? torneoName(e) : null;
-          const name = tor ? (tn.codigo ? tn.codigo + ' · ' : '') + tn.nombre : (e.titulo || '(sin título)');
+          const tor = isTorneo(e); const tn = tor ? torneoName(e) : null; const rec = isRecordatorio(e);
+          const name = tor ? (tn.codigo ? tn.codigo + ' · ' : '') + tn.nombre : rec ? 'Recordatorio · ' + String(e.titulo).replace(/^\u23f0\s*/, '') : (e.titulo || '(sin título)');
           const link = e.enlace ? '<a href="' + esc(e.enlace) + '" target="_blank" rel="noopener">' + esc(name) + '</a>' : esc(name);
           const lines = [];
           if (cl.has(e.id)) lines.push('<p class="p warn"><b>Choque</b>Se pisa con otra reunión de este día.</p>');
           if (e.mi_respuesta === 'needsAction') lines.push('<p class="p warn"><b>Sin responder</b>No has contestado a la convocatoria.</p>');
           const pr = state.prep[e.id]; if (pr && pr.texto) lines.push('<p class="p"><b>Prepara</b>' + esc(pr.texto) + '</p>');
-          const hb = tor ? [] : hablarFor(e); if (hb.length) lines.push('<p class="p"><b>Saca</b>' + esc(hb.map((h) => h.titulo).join(' · ')) + '</p>');
+          const hb = tor || rec ? [] : hablarFor(e); if (hb.length) lines.push('<p class="p"><b>Saca</b>' + esc(hb.map((h) => h.titulo).join(' · ')) + '</p>');
           return '<div class="ev' + (tor ? ' tor' : '') + '"><span class="t' + (cl.has(e.id) ? ' clash' : '') + '">' + esc(timeRange(e)) + '</span><span class="s">' + link + '</span>' + lines.join('') + '</div>';
         }).join('') + '</div>';
     }).join('');
@@ -264,25 +267,22 @@
       : '<li><span class="d">—</span><span class="n muted">Nada en los próximos 14 días.</span></li>';
   }
   function renderLibreta() {
-    // Libreta V2 (18/10/2026 · Sr. Vela): sin párrafos dictados y sin lo ya hecho. Solo lo soltado en los últimos 7 días que sigue abierto
-    // (las ideas van en «Ideas por tema»), más las notas que aún se están ordenando para que conste que han llegado.
-    const desde = ymd(addDays(today(), -7)); const vistos = new Set(); const filas = []; const ordenando = []; const reuniones = [];
+    // Libreta V3 (08/11/2026 · Sr. Vela): la Libreta es el cajón de los pensamientos sueltos, no una segunda lista de tareas.
+    // Lo que se convierte en tarea, encargo o «hablar con» vive solo en su sitio (A tu firma, Tus tareas, Hablar, Delegado).
+    // Aquí quedan: las notas que aún se están ordenando (para que conste que llegaron), las reuniones y recordatorios
+    // recién puestos en el calendario (hasta que pasen) y las ideas por tema.
+    // Antes (V2, 18/10): listaba también las tareas de los últimos 7 días, repetidas con las otras secciones.
+    const vistos = new Set(); const ordenando = []; const reuniones = []; const recordatorios = [];
     state.libreta.forEach((l) => {
       if (l.estado !== 'ordenada') { ordenando.push(l); return; }
-      if (!l.at || localDay(l.at) < desde) return;
       (Array.isArray(l.salidas) ? l.salidas : []).forEach((o) => {
         // P83: reuniones dictadas que ya están en el calendario (hasta que pasen)
         if (o && o.tipo === 'reunion' && o.evento_id) { if (o.fecha_limite >= ymd(today()) && !vistos.has('ev:' + o.evento_id)) { vistos.add('ev:' + o.evento_id); reuniones.push(o); } return; }
-        if (!o || !o.item_id || vistos.has(o.item_id) || o.tipo === 'idea') return;
-        const it = state.items.find((x) => x.id === o.item_id);
-        if (!it || !open(it) || it.tipo === 'idea') return;
-        vistos.add(it.id); filas.push({ it, o, at: l.at });
+        // P108: recordatorios con hora puestos en el calendario (hasta que pasen)
+        if (o && o.tipo === 'recordatorio' && o.evento_id) { if (o.fecha_limite >= ymd(today()) && !vistos.has('ev:' + o.evento_id)) { vistos.add('ev:' + o.evento_id); recordatorios.push(o); } return; }
       });
     });
-    const cuando = (at) => localDay(at) === ymd(today()) ? 'hoy' : fmtShort(localDay(at));
     const htmlOrd = ordenando.map((l) => { const t = String(l.texto || '').replace(/\s+/g, ' ').trim(); return '<li><span class="kind">Ordenando</span><span class="muted">' + esc(t.length > 70 ? t.slice(0, 70) + '…' : t) + '</span></li>'; }).join('');
-    const htmlFil = filas.map(({ it, o, at }) => '<li data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como hecha"></button><span class="t" data-action="edit"><span class="kind">' + esc(KIND[it.tipo] || it.tipo || 'Tarea') + '</span> ' + esc(o.sumado ? (o.relacionado || it.titulo) : it.titulo) +
-      (it.persona ? ' · ' + esc(it.persona) : '') + (o.sumado ? ' <span class="link">· añadido</span>' : '') + '</span><span class="r">' + esc(it.fecha_limite ? relDate(it.fecha_limite) : cuando(at)) + '</span></li>').join('');
     reuniones.sort((x, y) => (x.fecha_limite + x.hora).localeCompare(y.fecha_limite + y.hora));
     const htmlReu = reuniones.map((o) => '<li class="plain"><span><span class="kind">Reunión</span> ' + esc(o.titulo) +
       (o.ya_estaba ? ' <span class="link">· ya estaba en tu calendario</span>' : ' <span class="link">· puesta en tu calendario</span>') +
@@ -290,13 +290,17 @@
       (Array.isArray(o.sin_invitar) && o.sin_invitar.length ? '<br><span class="pend">Sin invitar: ' + esc(o.sin_invitar.join(' · ')) + '</span>' : '') +
       (Array.isArray(o.choca) && o.choca.length ? '<br><span class="pend">Coincide con: ' + esc(o.choca.join(' · ')) + '</span>' : '') + '</span>' +
       '<span class="r">' + esc(relDate(o.fecha_limite) + ' · ' + (o.hora || '')) + (o.enlace ? ' <a class="mini" href="' + esc(o.enlace) + '" target="_blank" rel="noopener">Calendar</a>' : '') + '</span></li>').join('');
-    $('#libreta').innerHTML = (htmlOrd ? '<ul class="outs">' + htmlOrd + '</ul>' : '') + (htmlReu || htmlFil ? '<ul class="fl">' + htmlReu + htmlFil + '</ul>' :
-      (htmlOrd ? '' : '<p class="empty-s">Nada pendiente de lo que has soltado esta semana.</p>'));
+    recordatorios.sort((x, y) => (x.fecha_limite + (x.hora || '')).localeCompare(y.fecha_limite + (y.hora || '')));
+    const htmlRec = recordatorios.map((o) => '<li class="plain"><span><span class="kind">Recordatorio</span> ' + esc(o.titulo) +
+      ' <span class="link">· aviso en tu calendario</span><br><span class="muted">La tarea sigue en tu lista hasta que la marques hecha.</span></span>' +
+      '<span class="r">' + esc(relDate(o.fecha_limite) + ' · ' + (o.hora || '')) + (o.enlace ? ' <a class="mini" href="' + esc(o.enlace) + '" target="_blank" rel="noopener">Calendar</a>' : '') + '</span></li>').join('');
+    $('#libreta').innerHTML = (htmlOrd ? '<ul class="outs">' + htmlOrd + '</ul>' : '') + (htmlReu || htmlRec ? '<ul class="fl">' + htmlReu + htmlRec + '</ul>' : '');
     const ideas = cng().filter((it) => open(it) && it.tipo === 'idea'); const by = {};
     ideas.forEach((it) => { const t = it.tema || 'Sin tema'; (by[t] = by[t] || []).push(it); });
     const keys = Object.keys(by).sort();
     $('#temas').innerHTML = keys.length ? '<h3 class="label" style="margin-top:8px">Ideas por tema</h3><div class="temas">' + keys.map((k) =>
-      '<div class="tema"><h4>' + esc(k) + ' <span class="muted" style="font-weight:400">· ' + by[k].length + '</span></h4><ul>' + by[k].map((it) => '<li data-id="' + esc(it.id) + '"><span data-action="edit" style="cursor:pointer">' + esc(it.titulo) + '</span></li>').join('') + '</ul></div>').join('') + '</div>' : '';
+      '<div class="tema"><h4>' + esc(k) + ' <span class="muted" style="font-weight:400">· ' + by[k].length + '</span></h4><ul>' + by[k].map((it) => '<li data-id="' + esc(it.id) + '"><span data-action="edit" style="cursor:pointer">' + esc(it.titulo) + '</span></li>').join('') + '</ul></div>').join('') + '</div>'
+      : (htmlOrd || htmlReu || htmlRec ? '' : '<p class="empty-s">Sin ideas apuntadas. Lo que sueltes sin pedirme una tarea se guarda aquí.</p>');
   }
   // Hecho V1 (18/10/2026 · Sr. Vela): pestaña al final con lo ya hecho de los últimos 14 días, agrupado por día, con opción de reabrir.
   function hechoHtml(lista) {
@@ -383,13 +387,13 @@
     el.innerHTML = (pend.length
       ? '<div class="eqsum">' + sum + '</div><ul class="eqlist">' + rows + '</ul>'
       : '<div class="eqok">✓ El equipo está al día: ningún cliente esperando respuesta.</div>') +
-      resHtml + '<p class="eqmeta">Comprobado en Gmail ' + esc(cuando) + '. Se actualiza cada 3 horas.</p>';
+      resHtml + '<p class="eqmeta">Comprobado en Gmail ' + esc(cuando) + '. Se actualiza cada 30 minutos.</p>';
   }
   // Tarjeta de juego (V2 22/10/2026): las cuatro cifras del día; cada casilla lleva a su sección.
   function renderScore() {
     const hoy = ymd(today()), fin = ymd(addDays(today(), 14)); const now = new Date();
     const firma = firmaList().length + vencidosEnc().length;
-    const reun = state.events.filter((e) => e.dia === hoy && !e.todo_el_dia && !isTorneo(e) && (!e.fin || new Date(e.fin) > now)).length;
+    const reun = state.events.filter((e) => e.dia === hoy && !e.todo_el_dia && !isTorneo(e) && !isRecordatorio(e) && (!e.fin || new Date(e.fin) > now)).length;
     const r = state.revision; const eq = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo.length : null;
     const tor = new Set(state.events.filter((e) => isTorneo(e) && (e.dia_fin || e.dia) >= hoy && e.dia <= fin).map((e) => e.dia + e.titulo)).size;
     const cell = (href, n, txt, hot) => '<a href="' + href + '"' + (hot ? ' class="hot"' : '') + '><b>' + (n === null ? '–' : n) + '</b><span>' + txt + '</span></a>';
@@ -746,9 +750,9 @@
     const { data: entry, error } = await sb.from('libreta').insert({ texto, estado: 'sin_ordenar', origen: 'app' }).select('*').single();
     if (error) { sStatus('No se pudo guardar (' + error.message + '). El texto sigue en la caja.', true); state.busy = false; $('#btnSoltar').disabled = false; return; }
     $('#suelta').value = ''; try { localStorage.removeItem('dp.suelta'); } catch (e) {}
-    sStatus(CONFIG.ordenarUrl ? 'Guardado. Ordenando…' : 'Guardado. Lo ordeno en menos de una hora.');
+    sStatus(CONFIG.ordenarUrl ? 'Guardado. Ordenando…' : 'Guardado. Lo ordeno en unos minutos.');
     const n = await ordenarAhora(entry);
-    if (CONFIG.ordenarUrl) sStatus(n ? (n === 1 ? 'Ordenado: 1 elemento.' : 'Ordenado: ' + n + ' elementos.') : 'Guardado. No he podido ordenarlo ahora; lo hago en menos de una hora.');
+    if (CONFIG.ordenarUrl) sStatus(n ? (n === 1 ? 'Ordenado: 1 elemento.' : 'Ordenado: ' + n + ' elementos.') : 'Guardado. No he podido ordenarlo ahora; lo hago en unos minutos.');
     state.busy = false; $('#btnSoltar').disabled = false;
     await loadTable('libreta'); await loadTable('asuntos'); renderAll();
   });

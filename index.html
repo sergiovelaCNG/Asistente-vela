@@ -402,14 +402,14 @@ details.fold > .fl, details.fold > div { padding: 0 16px 8px; }
     <label class="label" for="suelta">Suelta lo que tengas en la cabeza</label>
     <textarea id="suelta" placeholder="Escribe o dicta: tareas, reuniones, ideas, cosas que hablar con alguien…"></textarea>
     <div class="row">
-      <span class="hint" id="soltarHint">Lo ordeno y lo engancho a su asunto o persona. Si dictas una reunión con día y hora («reunión con Alberto el jueves a las 10, invítale»), la pongo en tu calendario; solo invito a quien me digas.</span>
+      <span class="hint" id="soltarHint">Si me pides una tarea («tarea», «recuérdame», «hay que», «pedir», «llamar», una fecha…) la ordeno y la engancho a su asunto o persona; si es un pensamiento suelto, lo guardo como idea en la Libreta. Una reunión con día y hora («reunión con Alberto el jueves a las 10, invítale») va a tu calendario, y solo invito a quien me digas. Un «recuérdame X a las 12» te pone además un aviso en el calendario.</span>
       <div class="acts"><button class="mic" id="btnMic" aria-pressed="false" aria-label="Dictar" hidden>🎙</button><button class="btn go" id="btnSoltar">Soltar</button></div>
     </div>
     <p class="status" id="soltarStatus" aria-live="polite"></p>
   </div>
 
   <div id="cng" role="tabpanel" aria-labelledby="tabCng" class="panel">
-    <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El parte llega a las 09:10 y se rehace cada 3 horas (10:10, 13:10, 16:10, 19:10 y 22:10).</p></div>
+    <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El parte llega a las 08:10 y se renueva cada hora cuando hay novedades (el último siempre es el vigente).</p></div>
     <section aria-labelledby="h-firma">
       <div class="shead"><h2 id="h-firma">A tu firma</h2><span class="label" id="firmaN"></span></div>
       <div id="firma"></div>
@@ -432,7 +432,7 @@ details.fold > .fl, details.fold > div { padding: 0 16px 8px; }
       <div id="delegado"></div>
     </section>
     <section aria-labelledby="h-lib">
-      <div class="shead"><h2 id="h-lib">Libreta</h2><span class="label">lo de esta semana que sigue abierto</span></div>
+      <div class="shead"><h2 id="h-lib">Libreta</h2><span class="label">ideas y lo que se está ordenando</span></div>
       <div id="libreta"></div>
       <div id="temas"></div>
     </section>
