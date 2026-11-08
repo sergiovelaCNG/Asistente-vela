@@ -1,4 +1,6 @@
 // Despacho · app de Sergio Vela. Datos en Supabase (proyecto asistente-vela), solo visibles con su sesión.
+// V3 (08/11/2026 · Sr. Vela, P109): cabecera corta + barra de saltos; tres bloques (Ahora · Hoy · Seguimiento); «Hoy» en una sola
+// tarjeta (línea del día, baldosas, turnos como franja horaria); negocio plegado; «A tu firma» con dos botones; Libreta como notas.
 (function () {
   'use strict';
   const CONFIG = {
@@ -140,10 +142,10 @@
       '<div class="chips"><span class="chip crit">encargo ' + esc(cuando) + '</span><span class="chip">' + esc(quien) + '</span></div></div>' +
       (it.novedad ? '<p class="nov"><b>Último</b>' + esc(it.novedad) + '</p>' : '') +
       (pr ? '<p class="pend">Recordatorio pedido a las ' + hhmm(pr.at) + ': estará en tus borradores de Gmail en unos segundos.</p>' : '') +
-      '<div class="acts">' + (pr ? '' : '<button class="btn go" data-action="nudge">Recordar</button>') +
-      (it.enlace ? '<a class="btn ghost" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
-      '<button class="btn" data-action="done">Hecho</button><button class="btn ghost" data-action="later">Mañana</button>' +
-      '<button class="btn ghost" data-action="edit">Editar</button></div></article>';
+      '<div class="acts">' + (pr ? '<button class="btn go" data-action="done">Hecho</button>' : '<button class="btn go" data-action="nudge">Recordar</button><button class="btn" data-action="done">Hecho</button>') +
+      '<button class="btn ghost" data-action="more">Más ▾</button></div>' +
+      '<div class="more">' + (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
+      '<button class="mini" data-action="later">Mañana</button><button class="mini" data-action="edit">Editar</button></div></article>';
   }
   function renderFirma() {
     const list = firmaList(); const venc = vencidosEnc();
@@ -158,10 +160,11 @@
         (it.novedad ? '<p class="nov"><b>Novedad</b>' + esc(it.novedad) + '</p>' : '') +
         (it.recomendacion ? '<p class="reco"><b>Recomiendo</b>' + esc(it.recomendacion) + '</p>' : '') +
         (pr ? '<p class="pend">' + (pr.tipo === 'reenvio' ? 'Reenvío a ' + esc(pr.para_nombre || pr.para || 'info@') + ' pedido a las ' : 'Borrador pedido a las ') + hhmm(pr.at) + ': estará en tus borradores de Gmail en unos segundos.</p>' : '') +
-        '<div class="acts">' + (pr ? '' : '<button class="btn go" data-action="mail">Pedir borrador</button>' + (it.enlace ? '<button class="btn" data-action="fwd">Pasar al equipo</button>' : '')) +
-        '<button class="btn" data-action="done">Hecho</button><button class="btn ghost" data-action="later">Mañana</button>' +
-        (it.enlace ? '<a class="btn ghost" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
-        '<button class="btn ghost" data-action="edit">Editar</button></div></article>';
+        // V3: dos acciones a la vista (Hecho y Más); el resto se despliega. P108: nada se envía solo.
+        '<div class="acts"><button class="btn go" data-action="done">Hecho</button><button class="btn ghost" data-action="more">Más ▾</button></div>' +
+        '<div class="more">' + (pr ? '' : '<button class="mini" data-action="mail">Pedir borrador</button>' + (it.enlace ? '<button class="mini" data-action="fwd">Pasar al equipo</button>' : '')) +
+        (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
+        '<button class="mini" data-action="later">Mañana</button><button class="mini" data-action="edit">Editar</button></div></article>';
     }).join('') : '') + encHtml || '<p class="empty-s">Nada urgente que firmar. Lo demás está en «Tus tareas».</p>';
     const fallos = state.solicitudes.filter((s) => s.estado === 'error');
     if (fallos.length) $('#firma').innerHTML = fallos.map((s) => { const it = state.items.find((x) => x.id === s.asunto_id); return '<p class="pend">No pude preparar el ' + (s.tipo === 'reenvio' ? 'reenvío' : 'borrador') + (it ? ' de «' + esc(it.titulo) + '»' : s.enlace ? ' del correo de «Equipo»' : '') + ': ' + esc(s.resultado || 'error') + '</p>'; }).join('') + $('#firma').innerHTML;
@@ -178,7 +181,8 @@
     return hhmm(e.inicio) + (e.fin ? '–' + hhmm(e.fin) : '');
   }
   function clashes(evs) {
-    const timed = evs.filter((e) => !e.todo_el_dia && e.inicio && e.fin && e.mi_respuesta !== 'declined'); const set = new Set();
+    // V3: los choques se miran solo entre reuniones; un torneo o un recordatorio ⏰ no «se pisa» con nada.
+    const timed = evs.filter((e) => !e.todo_el_dia && e.inicio && e.fin && e.mi_respuesta !== 'declined' && !isTorneo(e) && !isRecordatorio(e)); const set = new Set();
     for (let i = 0; i < timed.length; i++) for (let j = i + 1; j < timed.length; j++) {
       const a = timed[i], b = timed[j];
       if (new Date(a.inicio) < new Date(b.fin) && new Date(b.inicio) < new Date(a.fin)) { set.add(a.id); set.add(b.id); }
@@ -200,35 +204,52 @@
     }
     return days;
   }
+  // V3 · «Hoy» en una tarjeta: línea del día (todos los eventos de hoy, también los pasados, tachados), baldosas y turnos.
+  // Los días siguientes van debajo, compactos. Recordatorios «⏰» (P108) se enseñan como aviso, no como reunión.
+  function evKind(e) { return isTorneo(e) ? { cls: 'tor', txt: 'torneo' } : isRecordatorio(e) ? { cls: 'rec', txt: '⏰ aviso' } : e.todo_el_dia ? { cls: 'dia', txt: 'todo el día' } : { cls: '', txt: 'reunión' }; }
+  function evName(e) {
+    if (isTorneo(e)) { const tn = torneoName(e); return (tn.codigo ? tn.codigo + ' · ' : '') + tn.nombre; }
+    if (isRecordatorio(e)) return String(e.titulo).replace(/^⏰\s*/, '');
+    return e.titulo || '(sin título)';
+  }
   function renderAgenda() {
-    const el = $('#agenda');
-    const last = state.events.reduce((m, e) => (e.actualizado_at > m ? e.actualizado_at : m), '');
-    $('#agendaSub').textContent = last ? 'actualizada ' + hhmm(last) : '';
-    const days = agendaDays();
-    if (!days.length) { el.innerHTML = '<p class="empty-s">' + (state.loaded ? 'Sin reuniones ni torneos en los próximos días.' : 'Cargando la agenda…') + '</p>'; return; }
-    el.innerHTML = days.map(({ d, ds, evs }) => {
-      evs.sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio));
-      const cl = clashes(evs);
-      const reuniones = evs.filter((e) => !e.todo_el_dia && !isTorneo(e) && !isRecordatorio(e)).length, torneos = evs.filter(isTorneo).length;
-      const sinResp = evs.filter((e) => e.mi_respuesta === 'needsAction').length;
-      const alerts = [];
-      if (cl.size) alerts.push('se pisan ' + cl.size + ' reuniones');
-      if (reuniones >= 3 || (reuniones >= 2 && torneos)) alerts.push('día cargado');
-      if (sinResp) alerts.push(sinResp === 1 ? '1 convocatoria sin responder' : sinResp + ' convocatorias sin responder');
-      const title = (ds === ymd(today()) ? 'Hoy · ' : ds === ymd(addDays(today(), 1)) ? 'Mañana · ' : '') + DIAS[d.getDay()].replace(/^./, (c) => c.toUpperCase()) + ' ' + d.getDate();
-      return '<div class="day"><div class="dayh"><h3>' + esc(title) + '</h3>' + (alerts.length ? '<span class="alert">' + esc(alerts.join(' · ')) + '</span>' : '') + '</div>' +
-        evs.map((e) => {
-          const tor = isTorneo(e); const tn = tor ? torneoName(e) : null; const rec = isRecordatorio(e);
-          const name = tor ? (tn.codigo ? tn.codigo + ' · ' : '') + tn.nombre : rec ? 'Recordatorio · ' + String(e.titulo).replace(/^\u23f0\s*/, '') : (e.titulo || '(sin título)');
-          const link = e.enlace ? '<a href="' + esc(e.enlace) + '" target="_blank" rel="noopener">' + esc(name) + '</a>' : esc(name);
-          const lines = [];
-          if (cl.has(e.id)) lines.push('<p class="p warn"><b>Choque</b>Se pisa con otra reunión de este día.</p>');
-          if (e.mi_respuesta === 'needsAction') lines.push('<p class="p warn"><b>Sin responder</b>No has contestado a la convocatoria.</p>');
-          const pr = state.prep[e.id]; if (pr && pr.texto) lines.push('<p class="p"><b>Prepara</b>' + esc(pr.texto) + '</p>');
-          const hb = tor || rec ? [] : hablarFor(e); if (hb.length) lines.push('<p class="p"><b>Saca</b>' + esc(hb.map((h) => h.titulo).join(' · ')) + '</p>');
-          return '<div class="ev' + (tor ? ' tor' : '') + '"><span class="t' + (cl.has(e.id) ? ' clash' : '') + '">' + esc(timeRange(e)) + '</span><span class="s">' + link + '</span>' + lines.join('') + '</div>';
-        }).join('') + '</div>';
-    }).join('');
+    const now = new Date(); const hoy = ymd(today());
+    const evs = eventsOn(hoy).slice().sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio));
+    const cl = clashes(evs);
+    const reun = evs.filter((e) => !e.todo_el_dia && !isTorneo(e) && !isRecordatorio(e));
+    const tor = evs.filter(isTorneo);
+    const sub = [];
+    reun.slice(0, 2).forEach((e) => sub.push(hhmm(e.inicio) + ' ' + String(e.titulo || '').slice(0, 28)));
+    if (reun.length > 2) sub.push('+' + (reun.length - 2));
+    if (tor.length) { const tc = torneoName(tor[0]); sub.push('torneo' + (tc.codigo ? ' ' + tc.codigo : '')); }
+    const hs = $('#hoySub'); if (hs) hs.textContent = sub.join(' · ');
+    const tl = $('#tl');
+    if (tl) {
+      tl.innerHTML = evs.length ? evs.map((e) => {
+        const k = evKind(e); const fin = e.fin ? new Date(e.fin) : null; const ini = e.inicio ? new Date(e.inicio) : null;
+        const past = !e.todo_el_dia && fin && fin <= now; const cur = !e.todo_el_dia && ini && fin && ini <= now && now < fin;
+        const att = (e.asistentes || []).filter((a) => a.email !== 'sergio.vela@cngolf.es').map((a) => (a.nombre || String(a.email || '').split('@')[0]).split(' ')[0]).filter(Boolean);
+        const name = evName(e);
+        const link = e.enlace ? '<a href="' + esc(e.enlace) + '" target="_blank" rel="noopener">' + esc(name) + '</a>' : esc(name);
+        const lines = [];
+        if (cl.has(e.id)) lines.push('<p class="p warn"><b>Choque</b>se pisa con otra reunión</p>');
+        if (e.mi_respuesta === 'needsAction') lines.push('<p class="p warn"><b>Sin responder</b>no has contestado a la convocatoria</p>');
+        const pr = state.prep[e.id]; if (pr && pr.texto) lines.push('<p class="p"><b>Prepara</b>' + esc(pr.texto) + '</p>');
+        const hb = isTorneo(e) || isRecordatorio(e) ? [] : hablarFor(e); if (hb.length) lines.push('<p class="p"><b>Saca</b>' + esc(hb.map((h) => h.titulo).join(' · ')) + '</p>');
+        return '<div class="ev' + (past ? ' past' : cur ? ' now' : '') + '"><span class="t">' + esc(e.todo_el_dia ? 'día' : hhmm(e.inicio)) + '</span><span class="s">' + link +
+          (att.length && !isTorneo(e) && !isRecordatorio(e) ? '<small>con ' + esc(att.slice(0, 4).join(', ')) + (att.length > 4 ? ' y ' + (att.length - 4) + ' más' : '') + '</small>' : '') + '</span>' +
+          '<span class="k ' + k.cls + '">' + k.txt + '</span>' + lines.join('') + '</div>';
+      }).join('') : '<div class="ev"><span class="t">—</span><span class="s muted">' + (state.loaded ? 'Sin reuniones ni torneos hoy.' : 'Cargando la agenda…') + '</span><span></span></div>';
+    }
+    // Próximos días (hasta 3 con eventos, sin hoy)
+    const el = $('#agenda'); if (!el) return;
+    const days = []; for (let i = 1; i < 10 && days.length < 3; i++) { const d = addDays(today(), i), ds = ymd(d); const ev = eventsOn(ds); if (ev.length) days.push({ d, ds, evs: ev }); }
+    el.innerHTML = days.length ? '<div class="day"><div class="dayh"><h3>Próximos días</h3></div>' + days.map(({ d, ds, evs: dv }) => {
+      dv.sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio));
+      const title = (ds === ymd(addDays(today(), 1)) ? 'Mañana · ' : '') + DIAS[d.getDay()].replace(/^./, (c) => c.toUpperCase()) + ' ' + d.getDate();
+      return '<div class="nd"><h4>' + esc(title) + '</h4>' + dv.map((e) => { const k = evKind(e); const pr = state.prep[e.id];
+        return '<div class="ev"><span class="t">' + esc(timeRange(e)) + '</span><span class="s">' + esc(evName(e)) + (pr && pr.texto ? '<small>' + esc(pr.texto) + '</small>' : '') + '</span><span class="k ' + k.cls + '">' + k.txt + '</span></div>'; }).join('') + '</div>';
+    }).join('') + '</div>' : '';
   }
   function renderDelegado() {
     const list = cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido')).sort((a, b) => urgency(a) - urgency(b));
@@ -295,11 +316,12 @@
       ' <span class="link">· aviso en tu calendario</span><br><span class="muted">La tarea sigue en tu lista hasta que la marques hecha.</span></span>' +
       '<span class="r">' + esc(relDate(o.fecha_limite) + ' · ' + (o.hora || '')) + (o.enlace ? ' <a class="mini" href="' + esc(o.enlace) + '" target="_blank" rel="noopener">Calendar</a>' : '') + '</span></li>').join('');
     $('#libreta').innerHTML = (htmlOrd ? '<ul class="outs">' + htmlOrd + '</ul>' : '') + (htmlReu || htmlRec ? '<ul class="fl">' + htmlReu + htmlRec + '</ul>' : '');
-    const ideas = cng().filter((it) => open(it) && it.tipo === 'idea'); const by = {};
-    ideas.forEach((it) => { const t = it.tema || 'Sin tema'; (by[t] = by[t] || []).push(it); });
-    const keys = Object.keys(by).sort();
-    $('#temas').innerHTML = keys.length ? '<h3 class="label" style="margin-top:8px">Ideas por tema</h3><div class="temas">' + keys.map((k) =>
-      '<div class="tema"><h4>' + esc(k) + ' <span class="muted" style="font-weight:400">· ' + by[k].length + '</span></h4><ul>' + by[k].map((it) => '<li data-id="' + esc(it.id) + '"><span data-action="edit" style="cursor:pointer">' + esc(it.titulo) + '</span></li>').join('') + '</ul></div>').join('') + '</div>'
+    const ideas = cng().filter((it) => open(it) && it.tipo === 'idea');
+    // V3 · ideas como notas: tema arriba, texto, fecha y «→ tarea» (la convierte en tarea sin pasar por Editar).
+    ideas.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    $('#temas').innerHTML = ideas.length ? '<div class="notes">' + ideas.map((it) =>
+      '<div class="nt" data-id="' + esc(it.id) + '"><span class="tema">' + esc(it.tema || 'Sin tema') + '</span><p data-action="edit">' + esc(it.titulo) + '</p>' +
+      '<div class="foot"><small>' + esc(it.created_at ? (localDay(it.created_at) === ymd(today()) ? 'hoy' : fmtShort(localDay(it.created_at))) : '') + '</small><button class="mini" data-action="totask">→ tarea</button></div></div>').join('') + '</div>'
       : (htmlOrd || htmlReu || htmlRec ? '' : '<p class="empty-s">Sin ideas apuntadas. Lo que sueltes sin pedirme una tarea se guarda aquí.</p>');
   }
   // Hecho V1 (18/10/2026 · Sr. Vela): pestaña al final con lo ya hecho de los últimos 14 días, agrupado por día, con opción de reabrir.
@@ -384,10 +406,12 @@
     }).join('');
     const resHtml = res.length ? '<details class="res"><summary>' + res.length + (res.length === 1 ? ' resuelto' : ' resueltos') + ' desde el informe</summary><ul>' +
       res.map((x) => '<li><span class="t">' + (x.enlace ? '<a href="' + esc(x.enlace) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(x.asunto || '') + '</a>' : esc(x.asunto || '')) + '</span><span class="r">' + esc(x.quien || '') + '</span></li>').join('') + '</ul></details>' : '';
+    // V3: al día = una línea; los resueltos en texto corrido (quién y qué), sin desplegable.
+    const resTxt = res.length ? '<p class="res"><b>' + res.length + (res.length === 1 ? ' resuelto' : ' resueltos') + '</b> desde el informe · ' + esc(res.slice(0, 4).map((x) => (x.quien && x.quien !== '—' ? String(x.quien).split(' ')[0] + ' (' + String(x.asunto || '').slice(0, 40) + ')' : String(x.asunto || '').slice(0, 40))).join(' · ')) + (res.length > 4 ? ' · y ' + (res.length - 4) + ' más' : '') + '</p>' : '';
     el.innerHTML = (pend.length
-      ? '<div class="eqsum">' + sum + '</div><ul class="eqlist">' + rows + '</ul>'
-      : '<div class="eqok">✓ El equipo está al día: ningún cliente esperando respuesta.</div>') +
-      resHtml + '<p class="eqmeta">Comprobado en Gmail ' + esc(cuando) + '. Se actualiza cada 30 minutos.</p>';
+      ? '<div class="eqsum">' + sum + '</div><ul class="eqlist">' + rows + '</ul>' + resHtml
+      : '<div class="eqok">✓ El equipo está al día <small>ningún cliente esperando respuesta</small></div>' + resTxt) +
+      '<p class="eqmeta">Comprobado en Gmail ' + esc(cuando) + '. Se actualiza cada 30 minutos.</p>';
   }
   // Tarjeta de juego (V2 22/10/2026): las cuatro cifras del día; cada casilla lleva a su sección.
   function renderScore() {
@@ -397,8 +421,14 @@
     const r = state.revision; const eq = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo.length : null;
     const tor = new Set(state.events.filter((e) => isTorneo(e) && (e.dia_fin || e.dia) >= hoy && e.dia <= fin).map((e) => e.dia + e.titulo)).size;
     const cell = (href, n, txt, hot) => '<a href="' + href + '"' + (hot ? ' class="hot"' : '') + '><b>' + (n === null ? '–' : n) + '</b><span>' + txt + '</span></a>';
-    $('#score').innerHTML = cell('#h-firma', firma, 'a tu firma', firma > 0) + cell('#h-agenda', reun, reun === 1 ? 'reunión hoy' : 'reuniones hoy') +
+    $('#score').innerHTML = cell('#h-firma', firma, 'a tu firma', firma > 0) + cell('#h-hoy', reun, reun === 1 ? 'reunión hoy' : 'reuniones hoy') +
       cell('#h-eq', eq, 'equipo pendiente', eq !== null && eq > 5) + cell('#h-radar', tor, tor === 1 ? 'torneo en 14 d' : 'torneos en 14 d');
+    // V3 · barra de saltos: el número solo cuando hay algo
+    const jump = (id, n, crit) => { const j = $(id); if (!j) return; j.hidden = !n; j.textContent = n || ''; j.classList.toggle('crit', !!crit); };
+    jump('#jFirma', firma, firma > 0);
+    jump('#jDel', cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido')).length, false);
+    jump('#jEq', eq, eq !== null && eq > 5);
+    jump('#jLib', cng().filter((it) => open(it) && it.tipo === 'idea').length, false);
   }
   // V2.1 (22/10/2026): frescura de los datos del equipo, cifras de negocio y cierre de semana.
   const eur = (n) => typeof n === 'number' && isFinite(n) ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €' : null;
@@ -466,31 +496,71 @@
     el.hidden = false;
     el.innerHTML = '<div class="fact"><span class="et">Facturado hoy</span><b>' + esc(fac || '—') + '</b><span>' + (fac ? 'con IVA · ' + esc(hhmm(vd.generado)) + (vh.completo === false ? ' · incompleto' : '') : 'no disponible') + '</span></div>';
   }
-  function renderBiz() { renderTotal(renderReservas()); }
+  function renderBiz() {
+    const res = renderReservas(); renderTotal(res);
+    // V3 · el negocio sale del encabezado y va plegado: una línea resumen y el detalle al tocar.
+    const neg = $('#neg'); if (!neg) return;
+    const vd = state.vivo && state.vivo.datos; const vh = vd && vd.fecha === ymd(today()) && vd.unidades ? vd.unidades.ventas_hoy : null;
+    const fac = vh && vh.version === 'P86' && vh.fecha === ymd(today()) ? eur(vh.total) : null;
+    const hay = (res && res.n !== null) || fac;
+    neg.hidden = !hay && !res;
+    if (neg.hidden) return;
+    const partes = [];
+    if (res && res.n !== null) partes.push(res.n + ' reservas ' + res.cuando); else if (res) partes.push('ocupación ' + res.cuando + ' (lectura incompleta)');
+    if (fac) partes.push('facturado ' + fac);
+    $('#negT').textContent = partes.length ? partes.join(' · ') : 'Negocio de hoy';
+    $('#negS').textContent = 'GolfManager' + (vd && vd.generado ? ' ' + hhmm(vd.generado) : '') + ' · ocupación por unidad y ventas del día';
+  }
   // P81 (28/10/2026): quién trabaja en Caddy Master, Gestión de Juego y Fitting (turnos de GolfManager vía D4).
-  // Desde las 19:00, los de mañana, igual que las reservas. Ausencias sin motivo. Sin dato = «no disponible», nunca vacío inventado.
+  // V3 (08/11/2026 · Sr. Vela): como franja horaria, una barra por persona agrupada por departamento, con la hora actual marcada;
+  // quien está dentro de su turno, en verde fuerte. Desde las 19:00, los de mañana. Ausentes al pie, sin motivo. Sin dato = «no disponible».
   function renderTurnos() {
     const el = $('#turnos'); const v = state.vivo; const d = v && v.datos; const u = d && d.unidades; const t = u && u.turnos;
     const noche = new Date().getHours() >= 19;
-    $('#h-turnos').textContent = noche ? 'Trabajan mañana' : 'Trabajan hoy';
     if (!d || d.fecha !== ymd(today()) || !t || t.version !== 'P81') {
-      $('#turnosSub').textContent = ''; el.innerHTML = '<p class="empty-s">' + (state.loaded ? 'Turnos no disponibles ahora mismo.' : 'Cargando turnos…') + '</p>'; return;
+      el.innerHTML = '<div class="h"><span>' + (noche ? 'Trabajan mañana' : 'Trabajan hoy') + '</span><span>' + (state.loaded ? 'turnos no disponibles ahora mismo' : 'cargando…') + '</span></div>'; return;
     }
     const blq = t[noche ? 'manana' : 'hoy'] || {};
-    $('#turnosSub').textContent = 'GolfManager ' + hhmm(d.generado) + (t.ausencias ? '' : ' · sin datos de ausencias');
-    const ahora = new Date(); const hm = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes());
     const DEPS = ['Caddy Master', 'Gestión de Juego', 'Fitting'];
-    el.innerHTML = DEPS.map((dep) => {
-      const gente = Array.isArray(blq[dep]) ? blq[dep] : [];
-      const activos = gente.filter((p) => !p.ausente).length;
-      const filas = gente.map((p) => {
-        const dentro = !noche && !p.ausente && p.desde && p.hasta && p.desde <= hm && hm < p.hasta;
-        return '<li class="' + (p.ausente ? 'aus' : dentro ? 'now' : '') + '"><span class="h">' + esc((p.desde || '–') + '–' + (p.hasta || '–')) + '</span><span class="n">' + esc(p.nombre) +
-          (p.rol ? ' <span class="muted">· ' + esc(p.rol) + '</span>' : '') + '</span><span class="k">' + (p.ausente ? 'ausente' : dentro ? 'ahora' : '') + '</span></li>';
-      }).join('');
-      return '<div class="tdep"><div class="tdh"><h3>' + esc(dep) + '</h3><span class="' + (activos ? 'label' : 'alert') + '">' + (activos ? activos + (activos === 1 ? ' persona' : ' personas') : 'nadie con turno') + '</span></div>' +
-        (filas ? '<ul>' + filas + '</ul>' : '') + '</div>';
-    }).join('');
+    const toMin = (s) => { const m = String(s || '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+    let lo = 7 * 60, hi = 21 * 60; const todos = []; const aus = [];
+    DEPS.forEach((dep) => (Array.isArray(blq[dep]) ? blq[dep] : []).forEach((p) => { if (p.ausente) { aus.push(p.nombre); return; } const a = toMin(p.desde), b = toMin(p.hasta); if (a !== null && b !== null) { lo = Math.min(lo, Math.floor(a / 60) * 60); hi = Math.max(hi, Math.ceil(b / 60) * 60); } todos.push(p); }));
+    const span = Math.max(60, hi - lo); const pct = (m) => Math.max(0, Math.min(100, (m - lo) / span * 100));
+    const ahora = new Date(); const nowMin = ahora.getHours() * 60 + ahora.getMinutes();
+    const nowPct = !noche && nowMin >= lo && nowMin <= hi ? pct(nowMin) : null;
+    const nowStyle = nowPct === null ? '' : ' style="--now:' + nowPct.toFixed(1) + '%"';
+    const ticks = []; for (let h = Math.ceil(lo / 60) + 1; h < hi / 60; h += 2) ticks.push('<i style="left:' + pct(h * 60).toFixed(1) + '%">' + h + '</i>');
+    const first = (n) => String(n || '').trim().split(/\s+/).slice(0, 1).join(' ');
+    const names = {}; todos.forEach((p) => { const f = first(p.nombre); names[f] = (names[f] || 0) + 1; });
+    const label = (p) => { const parts = String(p.nombre || '').trim().split(/\s+/); const f = parts[0] || ''; return names[f] > 1 && parts[1] ? f + ' ' + parts[1].charAt(0) + '.' : f; };
+    let html = '<div class="h"><span>' + (noche ? 'Trabajan mañana' : 'Trabajan hoy') + ' · ' + todos.length + (todos.length === 1 ? ' persona' : ' personas') + '</span><span>' + (nowPct === null ? 'GolfManager ' + esc(hhmm(d.generado)) : 'ahora ' + pad(ahora.getHours()) + ':' + pad(ahora.getMinutes())) + '</span></div>' +
+      '<div class="ticks"' + nowStyle + '><span></span><span class="track">' + ticks.join('') + (nowPct === null ? '' : '<b></b>') + '</span></div>';
+    DEPS.forEach((dep) => {
+      const gente = (Array.isArray(blq[dep]) ? blq[dep] : []).filter((p) => !p.ausente);
+      html += '<div class="grp">' + esc(dep) + (gente.length ? '' : ' <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">· nadie con turno</span>') + '</div>';
+      gente.sort((a, b) => (toMin(a.desde) || 0) - (toMin(b.desde) || 0)).forEach((p) => {
+        const a = toMin(p.desde), b = toMin(p.hasta);
+        const dentro = nowPct !== null && a !== null && b !== null && a <= nowMin && nowMin < b;
+        const rol = p.rol ? String(p.rol).toLowerCase().replace(/\s+/g, ' ').trim() : '';
+        const bar = a !== null && b !== null && b > a ? '<span class="bar" style="left:' + pct(a).toFixed(1) + '%;width:' + (pct(b) - pct(a)).toFixed(1) + '%"><small>' + esc(p.desde + '–' + p.hasta) + (rol && b - a >= 420 ? ' · ' + esc(rol) : '') + '</small></span>' : '<span class="bar nodata"><small>sin horario</small></span>';
+        html += '<div class="row' + (dentro ? ' now' : '') + '"' + nowStyle + '><span class="n" title="' + esc(p.nombre + (rol ? ' · ' + rol : '')) + '">' + esc(label(p)) + '</span><span class="track">' + bar + '</span></div>';
+      });
+    });
+    html += '<div class="aus">' + (aus.length ? 'Ausentes: ' + esc(aus.map(first).join(' · ')) + '. ' : '') + 'Cuadrante de GolfManager, no fichaje real.</div>';
+    el.innerHTML = html;
+  }
+  // V3 · Baldosas de «Hoy»: semáforo del campo, jugadores, ocupación y reclamaciones (Informe Diario vía sync). Sin dato = «—».
+  function renderTiles() {
+    const el = $('#tiles'); if (!el) return;
+    const s = state.sync; const hoyS = s && localDay(s.at) === ymd(today()) ? s.datos || {} : null;
+    const c = hoyS && hoyS.campo; const n = (hoyS && hoyS.negocio) || {}; const cl = hoyS && hoyS.clientes;
+    const sem = c && c.semaforo ? String(c.semaforo) : null; const semCls = sem ? (SEMCLS[sem.toLowerCase()] || '') : '';
+    const tile = (val, txt, cls) => '<div><b class="' + (cls || '') + '">' + val + '</b><span>' + esc(txt) + '</span></div>';
+    const rec = cl ? cl.reclamaciones_sin_respuesta : null;
+    el.innerHTML = tile(sem ? '<span class="dot ' + semCls + '"></span>' + esc(sem.charAt(0) + sem.slice(1).toLowerCase()) : '—', 'campo' + (c && typeof c.puntos === 'number' ? ' · ' + c.puntos + '/100' : '') + (c && c.tendencia ? ' · ' + c.tendencia : ''), semCls) +
+      tile(n.jugadores_hoy != null ? esc(String(n.jugadores_hoy)) : '—', 'jugadores hoy') +
+      tile(n.ocupacion_hoy != null ? esc(n.ocupacion_hoy + ' %') : '—', 'ocupación del campo') +
+      tile(rec == null ? '—' : esc(String(rec)), rec === 1 ? 'reclamación sin respuesta' : 'reclamaciones sin respuesta', rec > 0 ? 'bad' : rec === 0 ? 'ok' : '');
   }
   // P82 (28/10/2026): «Operación de hoy» — campo, torneo del día, golf, clientes y tiempo. Todo copiado de su fuente
   // (Informe Diario vía sync, GolfManager vía D4, Calendar vía agenda). Lo que no hay se dice; nunca 0 inventado.
@@ -499,8 +569,7 @@
   function renderOperacion() {
     const el = $('#operacion'); const s = state.sync; const hoyS = s && localDay(s.at) === ymd(today()) ? s.datos || {} : null;
     const noche = new Date().getHours() >= 19; const dia = noche ? ymd(addDays(today(), 1)) : ymd(today());
-    $('#h-op').textContent = noche ? 'Operación de mañana' : 'Operación de hoy';
-    $('#opSub').textContent = hoyS && hoyS.informe_hora ? 'informe de las ' + hoyS.informe_hora : '';
+    $('#opSub').textContent = (noche ? 'de mañana · ' : '') + (hoyS && hoyS.informe_hora ? 'informe de las ' + hoyS.informe_hora : 'sin informe de hoy');
     const cards = [];
     // V17 (31/10/2026): el total facturado sale solo en la cabecera; aquí queda el reparto y la tabla.
     // P86 (29/10/2026): Hoy en el centro — ventas registradas de hoy (total) y lo ya dado hoy por unidad (GolfManager vía D4).
@@ -618,7 +687,7 @@
     html += '<li class="plain"><span class="muted" style="font-size:12px">Calculado ' + esc(hhmm(w.calculado)) + ' con tus asuntos, el buzón y el calendario.</span><span></span></li>';
     $('#semana').innerHTML = html;
   }
-  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
+  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTiles(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
 
   // ---------- datos ----------
   function showBanner(msg, err) { const b = $('#banner'); b.textContent = msg; b.className = 'banner' + (err ? ' err' : ''); b.hidden = !msg; }
@@ -687,6 +756,8 @@
     const host = btn.closest('[data-id]'); if (!host) return;
     const it = state.items.find((x) => x.id === host.dataset.id); if (!it) return;
     const a = btn.dataset.action;
+    if (a === 'more') { host.classList.toggle('open'); btn.textContent = host.classList.contains('open') ? 'Menos ▴' : 'Más ▾'; return; }
+    if (a === 'totask') { patch(it, { tipo: 'tarea', prioridad: it.prioridad || 'normal', tema: null }); return; }
     if (a === 'done') markDone(it);
     else if (a === 'reopen') patch(it, { estado: 'pendiente', hecho_at: null });
     else if (a === 'edit') openEditor(it);

@@ -16,12 +16,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap">
 <style>
-/* Despacho V2 (22/10/2026). Idea: la cabecera es una tarjeta de juego (scorecard) con las cuatro cifras del día; todo lo demás, sobrio.
-   Orden: tarjeta → parte → soltar → a tu firma → agenda → delegado → libreta → plegados → equipo → radar 14 días. */
+/* Despacho V3 (08/11/2026 · Sr. Vela, P109). La cabecera es una tarjeta de juego corta (saludo y cuatro cifras); debajo, una barra de saltos fija.
+   Tres bloques: AHORA (parte, a tu firma, negocio plegado) · HOY (una tarjeta: línea del día, baldosas, turnos en franja, detalle de la operación, próximos días)
+   · SEGUIMIENTO (delegado, equipo, libreta como notas, radar, plegados). Soltar va arriba, sin explicaciones. */
 :root {
   --bg: #eef1ec; --paper: #ffffff; --ink: #10261b; --muted: #5b6b61; --line: #d9e0da; --line-2: #e8ece8;
   --green: #0f5132; --green-2: #136440; --green-soft: #e2ede5; --on-green: #f3f8f4; --on-green-mut: #a9c9b5;
-  --flag: #8a6508; --flag-dot: #c99a1e; --flag-soft: #f7efd6;
+  --flag: #8a6508; --flag-dot: #c99a1e; --flag-soft: #f7efd6; --note: #fbf6e4; --note-line: #ecdfb0;
   --crit: #b4372c; --crit-soft: #f8e3e0; --ok: #1f7a4a; --scrim: rgba(8, 20, 13, .5);
   --shadow: 0 1px 2px rgba(16, 38, 27, .06), 0 4px 14px rgba(16, 38, 27, .05);
   --r-lg: 18px; --r-md: 14px; --r-sm: 10px;
@@ -31,14 +32,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0c1510; --paper: #142019; --ink: #e6ede7; --muted: #93a399; --line: #26352c; --line-2: #1d2a22;
     --green: #0e3f28; --green-2: #6cc093; --green-soft: #1a3024; --on-green: #eef6f0; --on-green-mut: #8fb7a0;
-    --flag: #e3b545; --flag-dot: #e3b545; --flag-soft: #352b12; --crit: #ef8a7e; --crit-soft: #3a201c; --ok: #6cc093;
+    --flag: #e3b545; --flag-dot: #e3b545; --flag-soft: #352b12; --note: #2a2516; --note-line: #4a3f1c; --crit: #ef8a7e; --crit-soft: #3a201c; --ok: #6cc093;
     --scrim: rgba(0, 0, 0, .62); --shadow: none; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0c1510; --paper: #142019; --ink: #e6ede7; --muted: #93a399; --line: #26352c; --line-2: #1d2a22;
   --green: #0e3f28; --green-2: #6cc093; --green-soft: #1a3024; --on-green: #eef6f0; --on-green-mut: #8fb7a0;
-  --flag: #e3b545; --flag-dot: #e3b545; --flag-soft: #352b12; --crit: #ef8a7e; --crit-soft: #3a201c; --ok: #6cc093;
+  --flag: #e3b545; --flag-dot: #e3b545; --flag-soft: #352b12; --note: #2a2516; --note-line: #4a3f1c; --crit: #ef8a7e; --crit-soft: #3a201c; --ok: #6cc093;
   --scrim: rgba(0, 0, 0, .62); --shadow: none; color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -365,6 +366,119 @@ details.fold > .fl, details.fold > div { padding: 0 16px 8px; }
   .overlay:not([hidden]) .editor { animation: up .2s ease-out; }
   @keyframes up { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
 }
+
+/* ---- V3 · barra de saltos, bloques, negocio plegado, tarjeta Hoy, turnos en franja, notas ---- */
+.jumps { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 8px 0; margin: -14px 0 -14px; background: var(--bg); }
+.jumps::-webkit-scrollbar { display: none; }
+.jumps a { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); font-size: 13.5px; font-weight: 600; color: var(--ink); text-decoration: none; }
+.jumps a i { font-style: normal; font-size: 12px; font-weight: 700; color: var(--on-green); background: var(--green-2); border-radius: 999px; padding: 0 7px; line-height: 18px; }
+.jumps a i.crit { background: var(--crit); }
+.block { display: flex; flex-direction: column; gap: 14px; }
+.eyebrow { display: flex; align-items: center; gap: 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.panel { gap: 26px; }
+section { gap: 10px; scroll-margin-top: 60px; }
+.shead h2 { font-size: 20px; }
+.soltar textarea { min-height: 44px; }
+.soltar .row { border-top: 0; padding-top: 0; justify-content: flex-end; }
+/* A tu firma: dos botones y «Más» */
+.firma .more { display: none; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px dashed var(--line-2); }
+.firma.open .more { display: flex; }
+.firma .more .mini { cursor: pointer; }
+/* Negocio plegado */
+details.neg { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow); overflow: hidden; }
+details.neg > summary { list-style: none; cursor: pointer; display: block; padding: 12px 16px; }
+details.neg > summary::-webkit-details-marker { display: none; }
+details.neg .sum { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "t c" "s c"; gap: 2px 12px; align-items: center; }
+details.neg .t { grid-area: t; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+details.neg .s { grid-area: s; font-size: 13px; color: var(--muted); }
+details.neg .chev { grid-area: c; color: var(--muted); transition: transform .2s; }
+details.neg[open] .chev { transform: rotate(180deg); }
+details.neg #bizres, details.neg #biztot { margin: 0; background: none; border-top: 1px solid var(--line-2); }
+details.neg .bizcap { margin: 0; padding: 8px 16px 0; color: var(--muted); background: none; border: 0; }
+details.neg .bizcap b { color: var(--crit); }
+details.neg .biz { margin: 0; background: none; border: 0; }
+details.neg .biz div { border-left-color: var(--line-2); padding-left: 16px; }
+details.neg .biz.occ div:nth-child(n+4) { border-top-color: var(--line-2); }
+details.neg .biz.occ .et { color: var(--ink); }
+details.neg .biz span { color: var(--muted); }
+details.neg .biz .cmp.up { color: var(--ok); } details.neg .biz .cmp.dn { color: var(--crit); }
+details.neg .biz.occ .sum { background: var(--green-soft); display: flex; }
+details.neg .fact { margin: 0; background: var(--green-soft); border-top: 1px solid var(--line-2); }
+details.neg .fact b { color: var(--green-2); }
+details.neg .fact span:last-child { color: var(--muted); }
+/* Tarjeta Hoy */
+.hoy { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow); overflow: hidden; }
+.tl { padding: 4px 16px; }
+.tl .ev { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 2px 12px; padding: 11px 0; border-top: 1px solid var(--line-2); align-items: baseline; }
+.tl .ev:first-child { border-top: 0; }
+.tl .t { font-size: 14px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tl .s { font-weight: 600; overflow-wrap: anywhere; }
+.tl .s a { color: inherit; text-decoration: none; }
+.tl .s small { display: block; font-size: 13px; color: var(--muted); font-weight: 400; }
+.tl .k { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--green-soft); color: var(--green-2); white-space: nowrap; }
+.tl .k.tor { background: var(--flag-soft); color: var(--flag); }
+.tl .k.rec, .tl .k.dia { background: var(--line-2); color: var(--muted); }
+.tl .ev.past .s, .tl .ev.past .t { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.tl .ev.past .k { opacity: .6; }
+.tl .ev.now .t { color: var(--green-2); }
+.tl .ev .p { grid-column: 2 / -1; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+.tl .ev .p b { color: var(--green-2); margin-right: 6px; }
+.tl .ev .p.warn b { color: var(--crit); }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line-2); }
+.tiles div { padding: 10px 8px 11px 14px; border-left: 1px solid var(--line-2); min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tiles div:first-child { border-left: 0; }
+.tiles b { font-size: 17px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tiles b.ok { color: var(--ok); } .tiles b.bad { color: var(--crit); } .tiles b.warn { color: var(--flag); }
+.tiles span { font-size: 11.5px; color: var(--muted); line-height: 1.2; }
+.tiles .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); margin-right: 5px; vertical-align: 1px; }
+.tiles .dot.ok { background: var(--ok); } .tiles .dot.warn { background: var(--flag-dot); } .tiles .dot.bad { background: var(--crit); }
+@media (max-width: 380px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tiles div:nth-child(3) { border-left: 0; } .tiles div:nth-child(n+3) { border-top: 1px solid var(--line-2); } }
+.staff { padding: 10px 16px 12px; border-top: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 5px; }
+.staff .h { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; }
+.staff .grp { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 6px; }
+.staff .row, .staff .ticks { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: center; }
+.staff .n { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.staff .n small { color: var(--muted); font-size: 12px; }
+.staff .row.now .n { font-weight: 700; }
+.staff .track { position: relative; height: 22px; background: var(--line-2); border-radius: 6px; overflow: hidden; }
+.staff .bar { position: absolute; z-index: 1; top: 0; bottom: 0; background: var(--green-soft); border-left: 3px solid var(--green-2); border-radius: 4px; display: flex; align-items: center; padding-left: 6px; min-width: 3px; }
+.staff .bar.nodata { left: 0; right: 0; background: none; border: 0; color: var(--muted); }
+.staff .row.now .bar { background: var(--green-2); color: var(--on-green); }
+.staff .bar small { font-size: 11px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; overflow: hidden; }
+.staff .ticks .track { height: 14px; background: none; overflow: visible; }
+.staff .ticks i { position: absolute; top: 0; font-size: 11px; font-style: normal; color: var(--muted); transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.staff .ticks b { position: absolute; top: 2px; bottom: -2px; width: 2px; background: var(--crit); left: var(--now); }
+.staff .row[style*="--now"] .track::after { content: ""; position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--crit); left: var(--now); }
+.staff .aus { font-size: 12.5px; color: var(--muted); padding-top: 6px; }
+details.opdet { border-top: 1px solid var(--line-2); }
+details.opdet > summary { list-style: none; cursor: pointer; padding: 11px 16px; font-size: 14px; font-weight: 700; color: var(--green-2); display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+details.opdet > summary::-webkit-details-marker { display: none; }
+details.opdet > summary::after { content: "›"; font-size: 20px; line-height: 1; color: var(--muted); transition: transform .15s; }
+details.opdet[open] > summary::after { transform: rotate(90deg); }
+details.opdet .opgrid { padding: 0 12px 12px; }
+details.opdet .op { box-shadow: none; }
+#agenda .day .nd { padding: 4px 0 2px; border-top: 1px solid var(--line-2); }
+#agenda .day .nd h4 { font-size: 13.5px; font-weight: 700; color: var(--muted); padding: 8px 0 2px; }
+#agenda .day .nd .ev { grid-template-columns: 80px minmax(0, 1fr) auto; border-top: 0; padding: 6px 0; }
+#agenda .day .nd .k { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--green-soft); color: var(--green-2); white-space: nowrap; }
+#agenda .day .nd .k.tor { background: var(--flag-soft); color: var(--flag); }
+#agenda .day .nd .k.rec, #agenda .day .nd .k.dia { background: var(--line-2); color: var(--muted); }
+#agenda .day .nd .s small { display: block; font-size: 13px; color: var(--muted); font-weight: 400; }
+/* Equipo al día y Libreta como notas */
+.eqok { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.eqok small { font-weight: 500; color: var(--muted); font-size: 13px; }
+.res { font-size: 14px; color: var(--muted); padding: 2px 4px; overflow-wrap: anywhere; }
+.res b { color: var(--ok); font-weight: 600; }
+.notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 560px) { .notes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.nt { background: var(--note); border: 1px solid var(--note-line); border-radius: var(--r-md); padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.nt .tema { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--flag); }
+.nt p { font-size: 15px; line-height: 1.35; font-weight: 500; overflow-wrap: anywhere; cursor: pointer; }
+.nt .foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: auto; padding: 0; max-width: none; }
+.nt .foot small { font-size: 12px; color: var(--muted); }
+.nt .mini { border-color: var(--note-line); color: var(--flag); padding: 3px 10px; cursor: pointer; }
+.ordenando { display: flex; gap: 10px; align-items: baseline; font-size: 14px; color: var(--muted); padding: 8px 12px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-sm); }
 </style>
 </head>
 <body>
@@ -392,65 +506,77 @@ details.fold > .fl, details.fold > div { padding: 0 16px 8px; }
     </div>
     <h1 id="greet">Hola, Sergio</h1>
     <nav class="score" id="score" aria-label="Tu día en cifras"></nav>
-    <div id="bizres" hidden></div>
-    <div id="biztot" hidden></div>
   </header>
+  <nav class="jumps" aria-label="Ir a">
+    <a href="#h-firma">Firma <i id="jFirma" hidden></i></a><a href="#h-hoy">Hoy</a><a href="#h-del">Delegado <i id="jDel" hidden></i></a><a href="#h-eq">Equipo <i id="jEq" hidden></i></a><a href="#h-lib">Libreta <i id="jLib" hidden></i></a><a href="#h-radar">Radar</a>
+  </nav>
   <p class="fresh" id="fresh" aria-live="polite"></p>
   <div class="banner" id="banner" hidden></div>
 
   <div class="soltar">
     <label class="label" for="suelta">Suelta lo que tengas en la cabeza</label>
-    <textarea id="suelta" placeholder="Escribe o dicta: tareas, reuniones, ideas, cosas que hablar con alguien…"></textarea>
-    <div class="row">
-      <span class="hint" id="soltarHint">Si me pides una tarea («tarea», «recuérdame», «hay que», «pedir», «llamar», una fecha…) la ordeno y la engancho a su asunto o persona; si es un pensamiento suelto, lo guardo como idea en la Libreta. Una reunión con día y hora («reunión con Alberto el jueves a las 10, invítale») va a tu calendario, y solo invito a quien me digas. Un «recuérdame X a las 12» te pone además un aviso en el calendario.</span>
-      <div class="acts"><button class="mic" id="btnMic" aria-pressed="false" aria-label="Dictar" hidden>🎙</button><button class="btn go" id="btnSoltar">Soltar</button></div>
-    </div>
+    <textarea id="suelta" placeholder="Escribe o dicta…"></textarea>
+    <div class="row"><div class="acts"><button class="mic" id="btnMic" aria-pressed="false" aria-label="Dictar" hidden>🎙</button><button class="btn go" id="btnSoltar">Soltar</button></div></div>
     <p class="status" id="soltarStatus" aria-live="polite"></p>
   </div>
 
   <div id="cng" role="tabpanel" aria-labelledby="tabCng" class="panel">
-    <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El parte llega a las 08:10 y se renueva cada hora cuando hay novedades (el último siempre es el vigente).</p></div>
-    <section aria-labelledby="h-firma">
-      <div class="shead"><h2 id="h-firma">A tu firma</h2><span class="label" id="firmaN"></span></div>
-      <div id="firma"></div>
-    </section>
-    <section aria-labelledby="h-op">
-      <div class="shead"><h2 id="h-op">Operación de hoy</h2><span class="label" id="opSub"></span></div>
-      <p class="tiempo" id="opTiempo"></p>
-      <div id="operacion" class="opgrid"></div>
-    </section>
-    <section aria-labelledby="h-agenda">
-      <div class="shead"><h2 id="h-agenda">Agenda</h2><span class="label" id="agendaSub"></span></div>
-      <div id="agenda"><p class="empty-s">Cargando la agenda…</p></div>
-    </section>
-    <section aria-labelledby="h-turnos">
-      <div class="shead"><h2 id="h-turnos">Trabajan hoy</h2><span class="label" id="turnosSub"></span></div>
-      <div id="turnos" class="turnos"></div>
-    </section>
-    <section aria-labelledby="h-del">
-      <div class="shead"><h2 id="h-del">Delegado y en espera</h2><span class="label" id="delN"></span></div>
-      <div id="delegado"></div>
-    </section>
-    <section aria-labelledby="h-lib">
-      <div class="shead"><h2 id="h-lib">Libreta</h2><span class="label">ideas y lo que se está ordenando</span></div>
-      <div id="libreta"></div>
-      <div id="temas"></div>
-    </section>
-    <div class="folds">
-      <details class="fold"><summary><span>Tus tareas</span><span class="label" id="nTareas"></span></summary><ul class="fl" id="tareas"></ul></details>
-      <details class="fold"><summary><span>Para hablar con</span><span class="label" id="nHablar"></span></summary><ul class="fl" id="hablar"></ul></details>
-      <details class="fold"><summary><span id="cierreLine">Hoy</span><span class="label"></span></summary><ul class="fl" id="cierre"></ul></details>
-      <details class="fold" id="semanaFold" hidden><summary><span id="semanaLine">Tu semana</span><span class="label"></span></summary><ul class="fl" id="semana"></ul></details>
-      <details class="fold"><summary><span>Hecho · últimos 14 días</span><span class="label" id="nHecho"></span></summary><ul class="fl" id="hecho"></ul></details>
+    <div class="block">
+      <div class="eyebrow">Ahora</div>
+      <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El parte llega a las 08:10 y se renueva cada hora cuando hay novedades (el último siempre es el vigente).</p></div>
+      <section aria-labelledby="h-firma">
+        <div class="shead"><h2 id="h-firma">A tu firma</h2><span class="label" id="firmaN"></span></div>
+        <div id="firma"></div>
+      </section>
+      <details class="neg" id="neg" hidden>
+        <summary><div class="sum"><span class="t" id="negT"></span><span class="s" id="negS"></span><span class="chev">▾</span></div></summary>
+        <div id="bizres" hidden></div>
+        <div id="biztot" hidden></div>
+      </details>
     </div>
-    <section aria-labelledby="h-eq">
-      <div class="shead"><h2 id="h-eq">Equipo</h2><span class="label" id="nEquipo"></span></div>
-      <div id="equipo"></div>
-    </section>
-    <section aria-labelledby="h-radar">
-      <div class="shead"><h2 id="h-radar">Radar · 14 días</h2><span class="label">torneos y tus plazos</span></div>
-      <ul class="radar" id="radar"></ul>
-    </section>
+
+    <div class="block">
+      <div class="eyebrow">Hoy</div>
+      <section aria-labelledby="h-hoy">
+        <div class="shead"><h2 id="h-hoy">Hoy</h2><span class="label" id="hoySub"></span></div>
+        <p class="tiempo" id="opTiempo"></p>
+        <div class="hoy">
+          <div class="tl" id="tl"></div>
+          <div class="tiles" id="tiles"></div>
+          <div class="staff" id="turnos"></div>
+          <details class="opdet"><summary><span>Detalle de la operación</span><span class="label" id="opSub"></span></summary><div id="operacion" class="opgrid"></div></details>
+        </div>
+        <div id="agenda"></div>
+      </section>
+    </div>
+
+    <div class="block">
+      <div class="eyebrow">Seguimiento</div>
+      <section aria-labelledby="h-del">
+        <div class="shead"><h2 id="h-del">Delegado y en espera</h2><span class="label" id="delN"></span></div>
+        <div id="delegado"></div>
+      </section>
+      <section aria-labelledby="h-eq">
+        <div class="shead"><h2 id="h-eq">Equipo</h2><span class="label" id="nEquipo"></span></div>
+        <div id="equipo"></div>
+      </section>
+      <section aria-labelledby="h-lib">
+        <div class="shead"><h2 id="h-lib">Libreta</h2><span class="label">ideas y lo que se está ordenando</span></div>
+        <div id="libreta"></div>
+        <div id="temas"></div>
+      </section>
+      <section aria-labelledby="h-radar">
+        <div class="shead"><h2 id="h-radar">Radar</h2><span class="label">14 días · torneos y tus plazos</span></div>
+        <ul class="radar" id="radar"></ul>
+      </section>
+      <div class="folds">
+        <details class="fold"><summary><span>Tus tareas</span><span class="label" id="nTareas"></span></summary><ul class="fl" id="tareas"></ul></details>
+        <details class="fold"><summary><span>Para hablar con</span><span class="label" id="nHablar"></span></summary><ul class="fl" id="hablar"></ul></details>
+        <details class="fold"><summary><span id="cierreLine">Hoy</span><span class="label"></span></summary><ul class="fl" id="cierre"></ul></details>
+        <details class="fold" id="semanaFold" hidden><summary><span id="semanaLine">Tu semana</span><span class="label"></span></summary><ul class="fl" id="semana"></ul></details>
+        <details class="fold"><summary><span>Hecho · últimos 14 días</span><span class="label" id="nHecho"></span></summary><ul class="fl" id="hecho"></ul></details>
+      </div>
+    </div>
   </div>
 
   <div id="per" role="tabpanel" aria-labelledby="tabPer" class="panel" hidden>
