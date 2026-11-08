@@ -390,9 +390,9 @@ details.neg { background: var(--paper); border: 1px solid var(--line); border-ra
 details.neg > summary { list-style: none; cursor: pointer; display: block; padding: 12px 16px; }
 details.neg > summary::-webkit-details-marker { display: none; }
 details.neg .sum { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "t c" "s c"; gap: 2px 12px; align-items: center; }
-details.neg .t { grid-area: t; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
-details.neg .s { grid-area: s; font-size: 13px; color: var(--muted); }
-details.neg .chev { grid-area: c; color: var(--muted); transition: transform .2s; }
+details.neg .sum .t { grid-area: t; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+details.neg .sum .s { grid-area: s; font-size: 13px; color: var(--muted); }
+details.neg .sum .chev { grid-area: c; color: var(--muted); transition: transform .2s; }
 details.neg[open] .chev { transform: rotate(180deg); }
 details.neg #bizres, details.neg #biztot { margin: 0; background: none; border-top: 1px solid var(--line-2); }
 details.neg .bizcap { margin: 0; padding: 8px 16px 0; color: var(--muted); background: none; border: 0; }
@@ -451,6 +451,13 @@ details.neg .fact span:last-child { color: var(--muted); }
 .staff .ticks b { position: absolute; top: 2px; bottom: -2px; width: 2px; background: var(--crit); left: var(--now); }
 .staff .row[style*="--now"] .track::after { content: ""; position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--crit); left: var(--now); }
 .staff .aus { font-size: 12.5px; color: var(--muted); padding-top: 6px; }
+details.neg > .fl { padding: 0 16px 6px; border-top: 1px solid var(--line-2); }
+details.neg > .staff { border-top: 1px solid var(--line-2); }
+details.neg > .opgrid { padding: 12px; border-top: 1px solid var(--line-2); }
+details.neg > .opgrid .op { box-shadow: none; }
+details.neg > #agenda .day { border: 0; border-radius: 0; box-shadow: none; border-top: 1px solid var(--line-2); padding-top: 0; }
+details.neg > #agenda .day .dayh { display: none; }
+details.neg > #agenda .day .nd:first-of-type { border-top: 0; }
 details.opdet { border-top: 1px solid var(--line-2); }
 details.opdet > summary { list-style: none; cursor: pointer; padding: 11px 16px; font-size: 14px; font-weight: 700; color: var(--green-2); display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
 details.opdet > summary::-webkit-details-marker { display: none; }
@@ -460,7 +467,8 @@ details.opdet .opgrid { padding: 0 12px 12px; }
 details.opdet .op { box-shadow: none; }
 #agenda .day .nd { padding: 4px 0 2px; border-top: 1px solid var(--line-2); }
 #agenda .day .nd h4 { font-size: 13.5px; font-weight: 700; color: var(--muted); padding: 8px 0 2px; }
-#agenda .day .nd .ev { grid-template-columns: 80px minmax(0, 1fr) auto; border-top: 0; padding: 6px 0; }
+#agenda .day .nd .ev { grid-template-columns: 80px minmax(0, 1fr) auto; border-top: 0; padding: 6px 0; align-items: baseline; }
+#agenda .day .nd .k { align-self: start; }
 #agenda .day .nd .k { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--green-soft); color: var(--green-2); white-space: nowrap; }
 #agenda .day .nd .k.tor { background: var(--flag-soft); color: var(--flag); }
 #agenda .day .nd .k.rec, #agenda .day .nd .k.dia { background: var(--line-2); color: var(--muted); }
@@ -543,10 +551,24 @@ details.opdet .op { box-shadow: none; }
         <div class="hoy">
           <div class="tl" id="tl"></div>
           <div class="tiles" id="tiles"></div>
-          <div class="staff" id="turnos"></div>
-          <details class="opdet"><summary><span>Detalle de la operación</span><span class="label" id="opSub"></span></summary><div id="operacion" class="opgrid"></div></details>
         </div>
-        <div id="agenda"></div>
+        <!-- V3.1 (Sr. Vela): debajo de la tarjeta del día, todo plegable con su línea resumen; la app recuerda cómo lo dejas. -->
+        <details class="neg" id="dTareas" open>
+          <summary><div class="sum"><span class="t">Tus tareas</span><span class="s" id="tareasS"></span><span class="chev">▾</span></div></summary>
+          <ul class="fl" id="tareas"></ul>
+        </details>
+        <details class="neg" id="dTurnos">
+          <summary><div class="sum"><span class="t" id="turnosT">Trabajan hoy</span><span class="s" id="turnosS"></span><span class="chev">▾</span></div></summary>
+          <div class="staff" id="turnos"></div>
+        </details>
+        <details class="neg" id="dOp">
+          <summary><div class="sum"><span class="t">Detalle de la operación</span><span class="s" id="opSub"></span><span class="chev">▾</span></div></summary>
+          <div id="operacion" class="opgrid"></div>
+        </details>
+        <details class="neg" id="dProx" hidden>
+          <summary><div class="sum"><span class="t">Próximos días</span><span class="s" id="proxS"></span><span class="chev">▾</span></div></summary>
+          <div id="agenda"></div>
+        </details>
       </section>
     </div>
 
@@ -570,7 +592,6 @@ details.opdet .op { box-shadow: none; }
         <ul class="radar" id="radar"></ul>
       </section>
       <div class="folds">
-        <details class="fold"><summary><span>Tus tareas</span><span class="label" id="nTareas"></span></summary><ul class="fl" id="tareas"></ul></details>
         <details class="fold"><summary><span>Para hablar con</span><span class="label" id="nHablar"></span></summary><ul class="fl" id="hablar"></ul></details>
         <details class="fold"><summary><span id="cierreLine">Hoy</span><span class="label"></span></summary><ul class="fl" id="cierre"></ul></details>
         <details class="fold" id="semanaFold" hidden><summary><span id="semanaLine">Tu semana</span><span class="label"></span></summary><ul class="fl" id="semana"></ul></details>

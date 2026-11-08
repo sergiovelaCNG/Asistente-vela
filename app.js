@@ -10,6 +10,11 @@
     ordenarUrl: '',
   };
   const $ = (s, r) => (r || document).querySelector(s);
+  // V3.1 · los desplegables con id recuerdan cómo los dejaste (solo en este navegador).
+  document.querySelectorAll('details[id]').forEach((d) => {
+    try { const v = localStorage.getItem('dp.open.' + d.id); if (v === '1') d.open = true; else if (v === '0') d.open = false; } catch (e) {}
+    d.addEventListener('toggle', () => { try { localStorage.setItem('dp.open.' + d.id, d.open ? '1' : '0'); } catch (e) {} });
+  });
   const sb = window.supabase.createClient(CONFIG.url, CONFIG.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   const state = { items: [], view: 'cng', events: [], prep: {}, briefing: null, revision: null, libreta: [], solicitudes: [], sync: null, semana: null, editing: null, busy: false, mailItem: null, loaded: false };
   const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
@@ -244,6 +249,9 @@
     // Próximos días (hasta 3 con eventos, sin hoy)
     const el = $('#agenda'); if (!el) return;
     const days = []; for (let i = 1; i < 10 && days.length < 3; i++) { const d = addDays(today(), i), ds = ymd(d); const ev = eventsOn(ds); if (ev.length) days.push({ d, ds, evs: ev }); }
+    const dp = $('#dProx'); if (dp) dp.hidden = !days.length;
+    const ps = $('#proxS'); if (ps && days.length) { const f = days[0]; const fe = f.evs.slice().sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio))[0];
+      ps.textContent = (f.ds === ymd(addDays(today(), 1)) ? 'mañana' : fmtShort(f.ds)) + ' · ' + (fe.todo_el_dia ? '' : hhmm(fe.inicio) + ' ') + evName(fe) + (f.evs.length > 1 ? ' · +' + (f.evs.length - 1) : '') + (days.length > 1 ? ' · ' + (days.length - 1) + (days.length === 2 ? ' día más' : ' días más') : ''); }
     el.innerHTML = days.length ? '<div class="day"><div class="dayh"><h3>Próximos días</h3></div>' + days.map(({ d, ds, evs: dv }) => {
       dv.sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio));
       const title = (ds === ymd(addDays(today(), 1)) ? 'Mañana · ' : '') + DIAS[d.getDay()].replace(/^./, (c) => c.toUpperCase()) + ' ' + d.getDate();
@@ -348,7 +356,10 @@
   function renderFolds() {
     const firmaIds = new Set(firmaList().map((x) => x.id));
     const tareas = cng().filter((it) => open(it) && (it.tipo === 'tarea' || !it.tipo || it.tipo === 'vencimiento') && !firmaIds.has(it.id)).sort((a, b) => (blocker(a) ? 1 : 0) - (blocker(b) ? 1 : 0) || urgency(a) - urgency(b));
-    $('#nTareas').textContent = tareas.length || '';
+    // V3.1: «Tus tareas» va en el bloque Hoy, plegable, con resumen (cuántas, vencidas y para hoy).
+    const venc = tareas.filter((it) => daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) < 0).length;
+    const paraHoy = tareas.filter((it) => daysUntil(it.fecha_limite) === 0).length;
+    const ts = $('#tareasS'); if (ts) ts.textContent = tareas.length ? [tareas.length + (tareas.length === 1 ? ' pendiente' : ' pendientes'), venc ? venc + (venc === 1 ? ' vencida' : ' vencidas') : '', paraHoy ? paraHoy + ' para hoy' : ''].filter(Boolean).join(' · ') + ' · además de las de «A tu firma»' : 'nada más apuntado';
     $('#tareas').innerHTML = tareas.length ? tareas.map((it) => rowLi(it)).join('') : '<li class="plain"><span class="muted">Nada más apuntado.</span><span></span></li>';
     const hablar = cng().filter((it) => open(it) && it.tipo === 'hablar').sort((a, b) => norm(a.persona).localeCompare(norm(b.persona)));
     $('#nHablar').textContent = hablar.length || '';
@@ -517,8 +528,11 @@
   function renderTurnos() {
     const el = $('#turnos'); const v = state.vivo; const d = v && v.datos; const u = d && d.unidades; const t = u && u.turnos;
     const noche = new Date().getHours() >= 19;
+    const tT = $('#turnosT'), tS = $('#turnosS');
+    if (tT) tT.textContent = noche ? 'Trabajan mañana' : 'Trabajan hoy';
     if (!d || d.fecha !== ymd(today()) || !t || t.version !== 'P81') {
-      el.innerHTML = '<div class="h"><span>' + (noche ? 'Trabajan mañana' : 'Trabajan hoy') + '</span><span>' + (state.loaded ? 'turnos no disponibles ahora mismo' : 'cargando…') + '</span></div>'; return;
+      if (tS) tS.textContent = state.loaded ? 'turnos no disponibles ahora mismo' : 'cargando…';
+      el.innerHTML = ''; return;
     }
     const blq = t[noche ? 'manana' : 'hoy'] || {};
     const DEPS = ['Caddy Master', 'Gestión de Juego', 'Fitting'];
@@ -533,8 +547,9 @@
     const first = (n) => String(n || '').trim().split(/\s+/).slice(0, 1).join(' ');
     const names = {}; todos.forEach((p) => { const f = first(p.nombre); names[f] = (names[f] || 0) + 1; });
     const label = (p) => { const parts = String(p.nombre || '').trim().split(/\s+/); const f = parts[0] || ''; return names[f] > 1 && parts[1] ? f + ' ' + parts[1].charAt(0) + '.' : f; };
-    let html = '<div class="h"><span>' + (noche ? 'Trabajan mañana' : 'Trabajan hoy') + ' · ' + todos.length + (todos.length === 1 ? ' persona' : ' personas') + '</span><span>' + (nowPct === null ? 'GolfManager ' + esc(hhmm(d.generado)) : 'ahora ' + pad(ahora.getHours()) + ':' + pad(ahora.getMinutes())) + '</span></div>' +
-      '<div class="ticks"' + nowStyle + '><span></span><span class="track">' + ticks.join('') + (nowPct === null ? '' : '<b></b>') + '</span></div>';
+    const dentroN = nowPct === null ? null : todos.filter((p) => { const a = toMin(p.desde), b = toMin(p.hasta); return a !== null && b !== null && a <= nowMin && nowMin < b; }).length;
+    if (tS) tS.textContent = [todos.length + (todos.length === 1 ? ' persona' : ' personas'), dentroN === null ? null : dentroN + ' ahora dentro', aus.length ? aus.length + (aus.length === 1 ? ' ausencia' : ' ausencias') : null, 'GolfManager ' + hhmm(d.generado)].filter(Boolean).join(' · ');
+    let html = '<div class="ticks"' + nowStyle + '><span></span><span class="track">' + ticks.join('') + (nowPct === null ? '' : '<b></b>') + '</span></div>';
     DEPS.forEach((dep) => {
       const gente = (Array.isArray(blq[dep]) ? blq[dep] : []).filter((p) => !p.ausente);
       html += '<div class="grp">' + esc(dep) + (gente.length ? '' : ' <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">· nadie con turno</span>') + '</div>';
