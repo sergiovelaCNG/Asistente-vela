@@ -1,0 +1,68 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Archivos Despacho P111</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+  /* Layout: una columna estrecha de lectura; dos tarjetas (una por archivo) con botón de copiar y el código debajo. */
+  :root { --bg: #f6f7f4; --fg: #1d2420; --muted: #5f6b63; --line: #d9ded8; --card: #ffffff; --accent: #1f6f43; --accent-fg: #ffffff; --ok: #1f6f43; --code-bg: #f0f2ee;
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #141916; --fg: #e8ece8; --muted: #9aa69e; --line: #2b332d; --card: #1b221d; --accent: #5fbf85; --accent-fg: #0f1a13; --ok: #5fbf85; --code-bg: #10150f; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg: #141916; --fg: #e8ece8; --muted: #9aa69e; --line: #2b332d; --card: #1b221d; --accent: #5fbf85; --accent-fg: #0f1a13; --ok: #5fbf85; --code-bg: #10150f; color-scheme: dark; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 15px; line-height: 1.5; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 48px; }
+  main { max-width: 760px; margin: 0 auto; display: grid; gap: 20px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0; text-wrap: balance; }
+  p { margin: 0; }
+  .lead { color: var(--muted); max-width: 65ch; }
+  ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; color: var(--muted); max-width: 65ch; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+  .head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+  .head b { font-family: var(--mono); font-size: 15px; font-weight: 400; }
+  .head small { color: var(--muted); font-variant-numeric: tabular-nums; }
+  button { font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer; margin-left: auto; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .status { color: var(--ok); font-weight: 500; min-height: 1.5em; }
+  textarea { width: 100%; box-sizing: border-box; height: 220px; resize: vertical; font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; font-size: 12px; line-height: 1.45; background: var(--code-bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; white-space: pre; overflow: auto; }
+  textarea:focus-visible { outline: 2px solid var(--accent); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<main>
+  <h1>Archivos de la app Despacho (P110 + P111)</h1>
+  <p class="lead">Los dos archivos van completos y sin cambios (app.js: 95.559 caracteres, 1.019 líneas; sw.js: 1.682 caracteres). Para cada uno: pulsa «Copiar», abre el archivo en GitHub (repositorio <span style="font-family:var(--mono)">sergiovelaCNG/Asistente-vela</span>, rama <span style="font-family:var(--mono)">main</span>), entra en editar, selecciona todo, pega y confirma el cambio.</p>
+  <ol>
+    <li>En GitHub, abre <span style="font-family:var(--mono)">app.js</span> → icono del lápiz (Edit) → Ctrl/Cmd+A → Ctrl/Cmd+V → «Commit changes».</li>
+    <li>Repite con <span style="font-family:var(--mono)">sw.js</span>.</li>
+    <li>En el móvil, cierra la app y vuelve a abrirla: el service worker nuevo (v23) recarga todo.</li>
+  </ol>
+
+  <section class="card">
+    <div class="head"><b>app.js</b><small id="appSize">cargando…</small><button type="button" id="copyApp">Copiar app.js</button></div>
+    <p class="status" id="appStatus"></p>
+    <textarea id="appText" readonly spellcheck="false" aria-label="Contenido de app.js"></textarea>
+  </section>
+
+  <section class="card">
+    <div class="head"><b>sw.js</b><small id="swSize">cargando…</small><button type="button" id="copySw">Copiar sw.js</button></div>
+    <p class="status" id="swStatus"></p>
+    <textarea id="swText" readonly spellcheck="false" aria-label="Contenido de sw.js"></textarea>
+  </section>
+</main>
+<script>
+  (function () {
+    const files = [['app.js', 'appText', 'appSize', 'copyApp', 'appStatus'], ['sw.js', 'swText', 'swSize', 'copySw', 'swStatus']];
+    const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    files.forEach(([name, ta, size, btn, st]) => {
+      const t = document.getElementById(ta), s = document.getElementById(size), b = document.getElementById(btn), p = document.getElementById(st);
+      fetch(name).then((r) => { if (!r.ok) throw new Error(r.status); return r.text(); }).then((txt) => {
+        t.value = txt; s.textContent = fmt(txt.length) + ' caracteres · ' + txt.split('\n').length + ' líneas';
+      }).catch(() => { s.textContent = 'no se pudo cargar'; p.textContent = 'No se pudo cargar el archivo. Recarga la página.'; });
+      b.addEventListener('click', () => {
+        const txt = t.value; if (!txt) { p.textContent = 'Aún no está cargado.'; return; }
+        const manual = () => { t.focus(); t.select(); p.textContent = 'El portapapeles no está disponible aquí: el texto queda seleccionado, cópialo con Ctrl/Cmd+C.'; };
+        if (!navigator.clipboard || !navigator.clipboard.writeText) { manual(); return; }
+        navigator.clipboard.writeText(txt).then(() => { p.textContent = 'Copiado ' + name + ' (' + fmt(txt.length) + ' caracteres). Ahora pégalo en GitHub.'; }).catch(manual);
+      });
+    });
+  })();
+</script>
+
+</body></html>
