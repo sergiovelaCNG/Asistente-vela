@@ -5,6 +5,10 @@
 // Diario de la mañana queda como respaldo y la ocupación sigue siendo la del Informe, etiquetada con su hora.
 // P111 (14/11/2026 · Sr. Vela): alquileres (buggies, carros eléctricos y manuales) como casilla propia en «Negocio de hoy», y en
 // «Hoy en el centro» filas de jugadores de golf y de alquileres con hoy · ya dados · quedan (GolfManager vía D4 V1.6.0).
+// V4 (14/11/2026 · Sr. Vela): azul y tarjetas limpias; cinco bloques (Ahora · Lo tuyo · El centro · Equipo · Seguimiento); las salidas
+// reservadas en GolfManager a su nombre no son reuniones (una línea plegada, fuera de choques y cifras); el parte marca lo nuevo y dice
+// «sin cambios» cuando repite; asunto vacío del buzón con respaldo; aplazar (mañana · lunes · semana · fecha) y «esperando a» en el editor;
+// estado tranquilo cuando no hay nada suyo; Personal con vencimientos de 30 días.
 (function () {
   'use strict';
   const CONFIG = {
@@ -25,7 +29,7 @@
   // La barra de saltos abre el desplegable al que lleva.
   document.addEventListener('click', (ev) => { const a = ev.target.closest('.jumps a'); if (!a) return; const t = document.querySelector(a.getAttribute('href')); const d = t && t.closest('details'); if (d && !d.open) d.open = true; });
   const sb = window.supabase.createClient(CONFIG.url, CONFIG.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-  const state = { items: [], view: 'cng', events: [], prep: {}, briefing: null, revision: null, libreta: [], solicitudes: [], sync: null, semana: null, editing: null, busy: false, mailItem: null, loaded: false };
+  const state = { items: [], view: 'cng', events: [], prep: {}, briefing: null, briefingPrev: null, revision: null, libreta: [], solicitudes: [], sync: null, semana: null, editing: null, busy: false, mailItem: null, loaded: false };
   const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   const DIAS3 = ['dom','lun','mar','mié','jue','vie','sáb'];
   const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -87,6 +91,8 @@
     $('#tabCng').setAttribute('aria-selected', String(state.view === 'cng'));
     $('#tabPer').setAttribute('aria-selected', String(state.view === 'personal'));
     $('#cng').hidden = state.view !== 'cng'; $('#per').hidden = state.view !== 'personal';
+    // V4: la barra de saltos y la frescura del equipo son de la vista CNG.
+    const j = $('.jumps'); if (j) j.hidden = state.view !== 'cng'; const f = $('#fresh'); if (f) f.hidden = state.view !== 'cng';
   }
   $('#tabCng').addEventListener('click', () => { state.view = 'cng'; try { localStorage.setItem('dp.view', 'cng'); } catch (e) {} applyView(); });
   $('#tabPer').addEventListener('click', () => { state.view = 'personal'; try { localStorage.setItem('dp.view', 'personal'); } catch (e) {} applyView(); });
@@ -143,7 +149,24 @@
       (cerrados.length > 4 ? '<li class="muted">y ' + (cerrados.length - 4) + ' más en «Hecho»</li>' : '') + '</ul></div>' : '';
     const pal = (s) => new Set(norm(s).replace(/[^a-z0-9& ]/g, ' ').split(/\s+/).filter((w) => w.length >= 5));
     const cerradoEn = (l) => { const w = pal(l); return cerrados.some((it) => { let n = 0; pal(it.titulo).forEach((x) => { if (w.has(x)) n++; }); return n >= 2; }); };
-    el.innerHTML = lines.map((l) => '<p' + (cerrados.length && cerradoEn(l) ? ' class="done"' : '') + '>' + esc(l) + '</p>').join('') + despues + (at ? '<span class="when">Parte de ' + esc(at) + (cerrados.length ? '; lo de arriba puede estar ya resuelto' : '') + '</span>' : '');
+    // V4: frente al parte anterior, lo nuevo lleva un punto; si repite entero, se dice «sin cambios desde las HH:MM».
+    const prev = state.briefingPrev && state.briefingPrev.texto ? new Set(String(state.briefingPrev.texto).split(/\n+/).map((s) => s.trim()).filter(Boolean)) : null;
+    const nuevas = prev ? lines.filter((l) => !prev.has(l)) : lines;
+    const sinCambios = prev && !nuevas.length && state.briefingPrev.at;
+    const cls = (l) => [cerrados.length && cerradoEn(l) ? 'done' : '', prev && nuevas.length && nuevas.length < lines.length && !prev.has(l) ? 'new' : ''].filter(Boolean).join(' ');
+    el.innerHTML = lines.map((l) => { const c = cls(l); return '<p' + (c ? ' class="' + c + '"' : '') + '>' + esc(l) + '</p>'; }).join('') + despues + calmHtml() +
+      (at ? '<span class="when">Parte de ' + esc(at) + (sinCambios ? ' · sin cambios desde las ' + hhmm(state.briefingPrev.at) : nuevas.length && nuevas.length < lines.length ? ' · lo nuevo lleva un punto' : '') + (cerrados.length ? '; lo de arriba puede estar ya resuelto' : '') + '</span>' : '');
+  }
+  // V4 · estado tranquilo: si no hay nada suyo (firma, tareas, encargos), una sola línea en vez de secciones vacías.
+  function calmHtml() {
+    if (!state.loaded) return '';
+    const mios = cng().filter((it) => open(it) && it.tipo !== 'idea' && it.tipo !== 'hablar' && !snoozed(it));
+    if (mios.length) return '';
+    const r = state.revision; const eq = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo.length : null;
+    const man = ymd(addDays(today(), 1)); const evm = eventsOn(man).filter((e) => !isReserva(e) && !isRecordatorio(e));
+    const tor = evm.filter(isTorneo); const reu = evm.filter(isReunion);
+    const manana = tor.length ? 'torneo ' + torneoName(tor[0]).nombre : reu.length ? reu.length + (reu.length === 1 ? ' reunión' : ' reuniones') : 'sin agenda';
+    return '<p class="calm">Nada tuyo pendiente' + (eq === null ? '' : ' · ' + eq + (eq === 1 ? ' cliente esperando al equipo' : ' clientes esperando al equipo')) + ' · mañana ' + esc(manana) + '</p>';
   }
   function encargoCard(it, i) {
     const n = daysUntil(it.fecha_limite); const pr = pendingRequest(it);
@@ -159,7 +182,7 @@
       '<div class="acts">' + (pr ? '<button class="btn go" data-action="done">Hecho</button>' : '<button class="btn go" data-action="nudge">Recordar</button><button class="btn" data-action="done">Hecho</button>') +
       '<button class="btn ghost" data-action="more">Más ▾</button></div>' +
       '<div class="more">' + (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
-      '<button class="mini" data-action="later">Mañana</button><button class="mini" data-action="edit">Editar</button></div></article>';
+      '<button class="mini" data-action="later">Aplazar</button><button class="mini" data-action="edit">Editar</button></div></article>';
   }
   function renderFirma() {
     const list = firmaList(); const venc = vencidosEnc();
@@ -178,7 +201,7 @@
         '<div class="acts"><button class="btn go" data-action="done">Hecho</button><button class="btn ghost" data-action="more">Más ▾</button></div>' +
         '<div class="more">' + (pr ? '' : '<button class="mini" data-action="mail">Pedir borrador</button>' + (it.enlace ? '<button class="mini" data-action="fwd">Pasar al equipo</button>' : '')) +
         (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
-        '<button class="mini" data-action="later">Mañana</button><button class="mini" data-action="edit">Editar</button></div></article>';
+        '<button class="mini" data-action="later">Aplazar</button><button class="mini" data-action="edit">Editar</button></div></article>';
     }).join('') : '') + encHtml || '<p class="empty-s">Nada urgente que firmar. Lo demás está en «Tus tareas».</p>';
     const fallos = state.solicitudes.filter((s) => s.estado === 'error');
     if (fallos.length) $('#firma').innerHTML = fallos.map((s) => { const it = state.items.find((x) => x.id === s.asunto_id); return '<p class="pend">No pude preparar el ' + (s.tipo === 'reenvio' ? 'reenvío' : 'borrador') + (it ? ' de «' + esc(it.titulo) + '»' : s.enlace ? ' del correo de «Equipo»' : '') + ': ' + esc(s.resultado || 'error') + '</p>'; }).join('') + $('#firma').innerHTML;
@@ -188,6 +211,10 @@
   // P108 (08/11/2026 · Sr. Vela): un recordatorio dictado («recuérdame X a las 12») se pone en el calendario como evento corto «⏰ X»;
   // en la app no cuenta como reunión y se enseña como aviso.
   const isRecordatorio = (e) => /^\u23f0/.test(String(e.titulo || ''));
+  // V4: salidas que Sergio reserva en GolfManager a su nombre (el calendario las recibe como «SERGIO VELA TORRES - GF … - Tee 1»):
+  // no son reuniones. Van en una sola línea y no cuentan en choques, cifras ni «reuniones vistas».
+  const isReserva = (e) => /^SERGIO VELA TORRES\s*-/i.test(String(e.titulo || '')) || /\s-\s*Tee\s*\d+\s*$/i.test(String(e.titulo || ''));
+  const isReunion = (e) => !e.todo_el_dia && !isTorneo(e) && !isRecordatorio(e) && !isReserva(e);
   function eventsOn(day) { return state.events.filter((e) => e.dia <= day && day <= (e.dia_fin || e.dia)); }
   function torneoName(e) { const s = String(e.titulo || '').trim(); const m = s.match(/^(PO|PR|PB|AB|A|B|F|P)\s+(.+)$/); return m ? { codigo: m[1], nombre: m[2] } : { codigo: null, nombre: s }; }
   function timeRange(e) {
@@ -196,7 +223,7 @@
   }
   function clashes(evs) {
     // V3: los choques se miran solo entre reuniones; un torneo o un recordatorio ⏰ no «se pisa» con nada.
-    const timed = evs.filter((e) => !e.todo_el_dia && e.inicio && e.fin && e.mi_respuesta !== 'declined' && !isTorneo(e) && !isRecordatorio(e)); const set = new Set();
+    const timed = evs.filter((e) => !e.todo_el_dia && e.inicio && e.fin && e.mi_respuesta !== 'declined' && !isTorneo(e) && !isRecordatorio(e) && !isReserva(e)); const set = new Set();
     for (let i = 0; i < timed.length; i++) for (let j = i + 1; j < timed.length; j++) {
       const a = timed[i], b = timed[j];
       if (new Date(a.inicio) < new Date(b.fin) && new Date(b.inicio) < new Date(a.fin)) { set.add(a.id); set.add(b.id); }
@@ -228,9 +255,10 @@
   }
   function renderAgenda() {
     const now = new Date(); const hoy = ymd(today());
-    const evs = eventsOn(hoy).slice().sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio));
+    const todos = eventsOn(hoy).slice().sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio));
+    const reservas = todos.filter(isReserva); const evs = todos.filter((e) => !isReserva(e));
     const cl = clashes(evs);
-    const reun = evs.filter((e) => !e.todo_el_dia && !isTorneo(e) && !isRecordatorio(e));
+    const reun = evs.filter(isReunion);
     const tor = evs.filter(isTorneo);
     const sub = [];
     reun.slice(0, 2).forEach((e) => sub.push(hhmm(e.inicio) + ' ' + String(e.titulo || '').slice(0, 28)));
@@ -254,10 +282,16 @@
           (att.length && !isTorneo(e) && !isRecordatorio(e) ? '<small>con ' + esc(att.slice(0, 4).join(', ')) + (att.length > 4 ? ' y ' + (att.length - 4) + ' más' : '') + '</small>' : '') + '</span>' +
           '<span class="k ' + k.cls + '">' + k.txt + '</span>' + lines.join('') + '</div>';
       }).join('') : '<div class="ev"><span class="t">—</span><span class="s muted">' + (state.loaded ? 'Sin reuniones ni torneos hoy.' : 'Cargando la agenda…') + '</span><span></span></div>';
+      // V4: las salidas reservadas a su nombre, en una línea (horas, con ×n si se repiten), sin tachar ni contar.
+      if (reservas.length) {
+        const horas = {}; reservas.forEach((e) => { const h = e.inicio ? hhmm(e.inicio) : '—'; horas[h] = (horas[h] || 0) + 1; });
+        const txt = Object.keys(horas).sort().map((h) => h + (horas[h] > 1 ? ' ×' + horas[h] : '')).join(' · ');
+        tl.innerHTML += '<div class="ev res"><span class="t">' + reservas.length + '</span><span class="s">' + (reservas.length === 1 ? 'salida reservada a tu nombre' : 'salidas reservadas a tu nombre') + '<small>' + esc(txt) + ' · GolfManager</small></span><span class="k res">reservas</span></div>';
+      }
     }
     // Próximos días (hasta 3 con eventos, sin hoy)
     const el = $('#agenda'); if (!el) return;
-    const days = []; for (let i = 1; i < 10 && days.length < 3; i++) { const d = addDays(today(), i), ds = ymd(d); const ev = eventsOn(ds); if (ev.length) days.push({ d, ds, evs: ev }); }
+    const days = []; for (let i = 1; i < 10 && days.length < 3; i++) { const d = addDays(today(), i), ds = ymd(d); const ev = eventsOn(ds).filter((e) => !isReserva(e)); if (ev.length) days.push({ d, ds, evs: ev }); }
     const dp = $('#dProx'); if (dp) dp.hidden = !days.length;
     const ps = $('#proxS'); if (ps && days.length) { const f = days[0]; const fe = f.evs.slice().sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio))[0];
       ps.textContent = (f.ds === ymd(addDays(today(), 1)) ? 'mañana' : fmtShort(f.ds)) + ' · ' + (fe.todo_el_dia ? '' : hhmm(fe.inicio) + ' ') + evName(fe) + (f.evs.length > 1 ? ' · +' + (f.evs.length - 1) : '') + (days.length > 1 ? ' · ' + (days.length - 1) + (days.length === 2 ? ' día más' : ' días más') : ''); }
@@ -272,6 +306,7 @@
     const list = cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido')).sort((a, b) => urgency(a) - urgency(b));
     const venc = list.filter((it) => it.tipo !== 'pedido' && daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) <= 0).length; const ped = list.filter((it) => it.tipo === 'pedido').length;
     $('#delN').textContent = list.length ? [(list.length - ped) + (list.length - ped === 1 ? ' encargo' : ' encargos'), venc ? venc + (venc === 1 ? ' vencido' : ' vencidos') : '', ped ? ped + (ped === 1 ? ' pedido' : ' pedidos') : ''].filter(Boolean).join(' · ') : 'no esperas nada de nadie';
+    defaultOpen('dDel', list.length > 0);
     $('#delegado').innerHTML = list.length ? list.map((it) => {
       const who = it.tipo === 'pedido' ? (it.proveedor || 'Proveedor') + (it.persona ? ' · ' + it.persona : '') : (it.persona || 'Sin asignar');
       // P88: el plazo del encargo se lee como plazo («vence hoy», «vencido hace 2 d»), no como «para hace 2 d».
@@ -362,19 +397,21 @@
     const p = hechoHtml(per()); $('#nPerHecho').textContent = p.n || ''; $('#perHecho').innerHTML = p.html;
   }
   function rowLi(it, right) {
-    const b = blocker(it);
-    return '<li class="' + (b ? 'blk' : '') + '" data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como hecha"></button><span class="t" data-action="edit">' + esc(it.titulo) + (b ? ' · antes: ' + esc(b.titulo) : '') + '</span><span class="r">' + esc(right != null ? right : b ? 'bloqueada' : it.fecha_limite ? relDate(it.fecha_limite) : '') + '</span></li>';
+    const b = blocker(it); const sz = snoozed(it);
+    return '<li class="' + (b || sz ? 'blk' : '') + '" data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como hecha"></button><span class="t" data-action="edit">' + esc(it.titulo) + (b ? ' · antes: ' + esc(b.titulo) : '') + '</span><span class="r">' + esc(right != null ? right : b ? 'esperando' : sz ? 'aplazada · ' + relDate(it.pospuesto_hasta) : it.fecha_limite ? relDate(it.fecha_limite) : '') + '</span></li>';
   }
   function renderFolds() {
     const firmaIds = new Set(firmaList().map((x) => x.id));
-    const tareas = cng().filter((it) => open(it) && (it.tipo === 'tarea' || !it.tipo || it.tipo === 'vencimiento') && !firmaIds.has(it.id)).sort((a, b) => (blocker(a) ? 1 : 0) - (blocker(b) ? 1 : 0) || urgency(a) - urgency(b));
+    const tareas = cng().filter((it) => open(it) && (it.tipo === 'tarea' || !it.tipo || it.tipo === 'vencimiento') && !firmaIds.has(it.id)).sort((a, b) => ((blocker(a) || snoozed(a)) ? 1 : 0) - ((blocker(b) || snoozed(b)) ? 1 : 0) || urgency(a) - urgency(b));
+    defaultOpen('dTareas', tareas.length > 0);
     // V3.1: «Tus tareas» va en el bloque Hoy, plegable, con resumen (cuántas, vencidas y para hoy).
     const venc = tareas.filter((it) => daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) < 0).length;
     const paraHoy = tareas.filter((it) => daysUntil(it.fecha_limite) === 0).length;
     const ts = $('#tareasS'); if (ts) ts.textContent = tareas.length ? [tareas.length + (tareas.length === 1 ? ' pendiente' : ' pendientes'), venc ? venc + (venc === 1 ? ' vencida' : ' vencidas') : '', paraHoy ? paraHoy + ' para hoy' : ''].filter(Boolean).join(' · ') + ' · además de las de «A tu firma»' : 'nada más apuntado';
     $('#tareas').innerHTML = tareas.length ? tareas.map((it) => rowLi(it)).join('') : '<li class="plain"><span class="muted">Nada más apuntado.</span><span></span></li>';
     const hablar = cng().filter((it) => open(it) && it.tipo === 'hablar').sort((a, b) => norm(a.persona).localeCompare(norm(b.persona)));
-    $('#nHablar').textContent = hablar.length || '';
+    const hs = $('#hablarS'); if (hs) hs.textContent = hablar.length ? hablar.length + (hablar.length === 1 ? ' persona' : ' personas') : 'nadie pendiente';
+    defaultOpen('dHablar', hablar.length > 0);
     $('#hablar').innerHTML = hablar.length ? hablar.map((it) => rowLi(it, it.persona || '')).join('') : '<li class="plain"><span class="muted">Nada pendiente de hablar con nadie.</span><span></span></li>';
     const r = state.revision;
     const hoy = ymd(today());
@@ -386,7 +423,9 @@
     $('#cierre').innerHTML = (mios.map((it) => '<li class="plain"><span>✓ ' + esc(it.titulo) + '</span><span class="r">' + hhmm(it.hecho_at) + '</span></li>').join('') +
       (resEq ? resEq.map((x) => '<li class="plain"><span>Equipo · ' + esc(x.asunto || '') + (x.como ? ' · ' + esc(x.como) : '') + '</span><span class="r">' + esc(x.quien || '') + '</span></li>').join('') : rv && rv.resumen ? '<li class="plain"><span>Equipo · ' + esc(rv.resumen) + '</span><span></span></li>' : '')) ||
       '<li class="plain"><span class="muted">Nada cerrado todavía hoy.</span><span></span></li>';
-    const pp = per().filter((it) => open(it) && it.tipo !== 'idea').sort((a, b) => urgency(a) - urgency(b));
+    // V4: lo que ya sale en «Próximos 30 días» no se repite en Pendiente.
+    const vencIds = new Set(perVencList().map((x) => x.id));
+    const pp = per().filter((it) => open(it) && it.tipo !== 'idea' && !vencIds.has(it.id)).sort((a, b) => urgency(a) - urgency(b));
     $('#nPer').textContent = pp.length || ''; $('#perList').innerHTML = pp.length ? pp.map((it) => rowLi(it)).join('') : '<li class="plain"><span class="muted">Nada pendiente.</span><span></span></li>';
     const pi = per().filter((it) => open(it) && it.tipo === 'idea');
     $('#nPerIdeas').textContent = pi.length || ''; $('#perIdeas').innerHTML = pi.length ? pi.map((it) => rowLi(it, it.tema || '')).join('') : '<li class="plain"><span class="muted">Sin ideas personales apuntadas.</span><span></span></li>';
@@ -403,7 +442,7 @@
   }
   // P72 · reenvío pedido desde «Equipo» (sin asunto): se reconoce por el enlace del hilo.
   function eqPedido(enlace) { return state.solicitudes.find((s) => s.tipo === 'reenvio' && s.estado === 'pendiente' && !s.asunto_id && s.enlace === enlace); }
-  function eqAsunto(p) { return String(p.asunto || '').replace(/\s*\((parado|sección)[^)]*\)\s*$/i, '').trim(); }
+  function eqAsunto(p) { const s = String(p.asunto || '').replace(/\s*\((parado|sección)[^)]*\)\s*$/i, '').trim(); return s || ('Sin asunto' + (p.bandeja ? ' · ' + p.bandeja : '')); } // V4: nunca una fila vacía
   function renderEquipo() {
     const r = state.revision; const el = $('#equipo');
     if (!r) { $('#nEquipo').textContent = ''; el.innerHTML = '<p class="empty-s">Aún sin datos: el informe y las revisiones lo rellenan.</p>'; return; }
@@ -415,7 +454,10 @@
     $('#nEquipo').textContent = [pend.length ? pend.length + (pend.length === 1 ? ' cliente esperando' : ' clientes esperando') + (viejo && typeof viejo.dias === 'number' ? ' · el más antiguo ' + viejo.dias + ' d' : '') : 'al día', res.length ? res.length + (res.length === 1 ? ' resuelto hoy' : ' resueltos hoy') : '', cuando ? 'revisado ' + cuando : ''].filter(Boolean).join(' · ');
     defaultOpen('dEq', pend.length > 0);
     const porB = {}; pend.forEach((p) => { const k = p.bandeja || 'Sin bandeja'; porB[k] = (porB[k] || 0) + 1; });
-    const sum = Object.keys(porB).sort((a, b) => porB[b] - porB[a]).map((k) => '<span class="chip' + (k === 'Extranjeros' ? ' flag' : '') + '">' + esc(k) + ' ' + porB[k] + '</span>').join('');
+    // V4: antigüedad a la vista (hoy · 1-2 d · 3 d o más) y después las bandejas.
+    const ag = { hoy: 0, rec: 0, vie: 0 }; pend.forEach((p) => { const d = typeof p.dias === 'number' ? p.dias : null; if (d === null) return; if (d <= 0) ag.hoy++; else if (d < 3) ag.rec++; else ag.vie++; });
+    const ages = [ag.vie ? '<span class="chip crit">' + ag.vie + ' de 3 d o más</span>' : '', ag.rec ? '<span class="chip flag">' + ag.rec + ' de 1-2 d</span>' : '', ag.hoy ? '<span class="chip">' + ag.hoy + ' de hoy</span>' : ''].join('');
+    const sum = ages + Object.keys(porB).sort((a, b) => porB[b] - porB[a]).map((k) => '<span class="chip plain">' + esc(k) + ' ' + porB[k] + '</span>').join('');
     state.eqPend = pend;
     const rows = pend.map((p, i) => {
       const d = typeof p.dias === 'number' ? p.dias : null; const st = eqEstado(p);
@@ -442,7 +484,7 @@
   function renderScore() {
     const hoy = ymd(today()), fin = ymd(addDays(today(), 14)); const now = new Date();
     const firma = firmaList().length + vencidosEnc().length;
-    const reun = state.events.filter((e) => e.dia === hoy && !e.todo_el_dia && !isTorneo(e) && !isRecordatorio(e) && (!e.fin || new Date(e.fin) > now)).length;
+    const reun = state.events.filter((e) => e.dia === hoy && isReunion(e) && (!e.fin || new Date(e.fin) > now)).length;
     const r = state.revision; const eq = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo.length : null;
     const tor = new Set(state.events.filter((e) => isTorneo(e) && (e.dia_fin || e.dia) >= hoy && e.dia <= fin).map((e) => e.dia + e.titulo)).size;
     const cell = (href, n, txt, hot) => '<a href="' + href + '"' + (hot ? ' class="hot"' : '') + '><b>' + (n === null ? '–' : n) + '</b><span>' + txt + '</span></a>';
@@ -737,7 +779,8 @@
       return '<span class="cmp' + c + '">' + (d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '= igual') + ' vs ' + ref + ' (' + b + ')</span>';
     };
     const num = (x) => N(x) === null ? 'no disponible' : String(x);
-    const fila = (t, sub, r, extra) => '<li class="plain"><span>' + t + (sub ? '<span class="sub">' + sub + '</span>' : '') + '</span><span class="r"><b>' + esc(r) + '</b>' + (extra || '') + '</span></li>';
+    // V4: la comparativa va debajo del concepto (en móvil no cabe a la derecha).
+    const fila = (t, sub, r, extra) => '<li class="plain"><span>' + t + (sub ? '<span class="sub">' + sub + '</span>' : '') + (extra || '') + '</span><span class="r"><b>' + esc(r) + '</b></span></li>';
     const lista = (arr, f) => (Array.isArray(arr) ? arr : []).map(f).join('<br>');
     const dd = (x) => x ? fmtShort(x) : '';
     const an = w.anterior || {}; const eq = w.equipo || {};
@@ -758,7 +801,7 @@
     html += '<li class="plain"><span class="muted" style="font-size:12px">Calculado ' + esc(hhmm(w.calculado)) + ' con tus asuntos, el buzón y el calendario.</span><span></span></li>';
     $('#semana').innerHTML = html;
   }
-  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTiles(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderFolds(); renderHecho(); }
+  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTiles(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderPerVenc(); renderFolds(); renderHecho(); }
 
   // ---------- datos ----------
   function showBanner(msg, err) { const b = $('#banner'); b.textContent = msg; b.className = 'banner' + (err ? ' err' : ''); b.hidden = !msg; }
@@ -770,7 +813,7 @@
     if (t === 'asuntos') q = sb.from('asuntos').select('*');
     else if (t === 'agenda') q = sb.from('agenda').select('*').gte('dia_fin', hoy).order('dia');
     else if (t === 'prep') q = sb.from('prep').select('*').gte('fecha', hoy);
-    else if (t === 'briefings') q = sb.from('briefings').select('*').order('at', { ascending: false }).limit(1);
+    else if (t === 'briefings') q = sb.from('briefings').select('*').order('at', { ascending: false }).limit(2);
     else if (t === 'revisiones') q = sb.from('revisiones').select('*').order('at', { ascending: false }).limit(1);
     else if (t === 'libreta') q = sb.from('libreta').select('*').order('at', { ascending: false }).limit(20);
     else if (t === 'sync') q = sb.from('sync').select('*').order('id', { ascending: false }).limit(1);
@@ -782,7 +825,7 @@
     if (t === 'asuntos') state.items = data;
     else if (t === 'agenda') state.events = data;
     else if (t === 'prep') { const m = {}; data.forEach((p) => { m[p.id] = p; }); state.prep = m; }
-    else if (t === 'briefings') state.briefing = data[0] || null;
+    else if (t === 'briefings') { state.briefing = data[0] || null; state.briefingPrev = data[1] || null; }
     else if (t === 'revisiones') state.revision = data[0] || null;
     else if (t === 'libreta') state.libreta = data;
     else if (t === 'solicitudes') state.solicitudes = data;
@@ -835,7 +878,7 @@
     else if (a === 'mail') openMail(it, 'borrador');
     else if (a === 'fwd') openFwd(it);
     else if (a === 'nudge') openMail(it, 'recordatorio');
-    else if (a === 'later') patch(it, { pospuesto_hasta: ymd(addDays(today(), 1)) });
+    else if (a === 'later') openLater(it);
   });
 
   // ---------- soltar ----------
@@ -922,6 +965,11 @@
     $('#edTitulo').value = it.titulo || ''; $('#edTipo').value = KIND[it.tipo] ? it.tipo : 'tarea'; $('#edAmbito').value = it.ambito || 'cng';
     $('#edPrio').value = it.prioridad || 'normal'; $('#edFecha').value = it.fecha_limite || ''; $('#edPersona').value = it.persona || ''; $('#edPara').value = it.para || '';
     $('#edTema').value = it.tema || ''; $('#edRec').value = it.recurrencia || ''; $('#edDetalle').value = it.detalle || ''; $('#edStatus').textContent = '';
+    // V4: aplazada hasta y «esperando a» (otro asunto abierto del mismo ámbito).
+    $('#edPosp').value = it.pospuesto_hasta || '';
+    const sel = $('#edBloq'); const otros = state.items.filter((x) => open(x) && x.id !== it.id && (x.ambito || 'cng') === (it.ambito || 'cng') && x.tipo !== 'idea').sort((a, b) => norm(a.titulo).localeCompare(norm(b.titulo)));
+    sel.innerHTML = '<option value="">Nada</option>' + otros.map((x) => '<option value="' + esc(x.id) + '">' + esc(String(x.titulo || '').slice(0, 70)) + '</option>').join('');
+    sel.value = it.bloqueado_por && otros.some((x) => x.id === it.bloqueado_por) ? it.bloqueado_por : '';
     $('#edDelete').textContent = 'Eliminar'; $('#edDelete').dataset.armed = '';
     $('#edFwd').hidden = !it.enlace || !open(it) || !!pendingRequest(it);
     $('#overlay').hidden = false;
@@ -934,7 +982,8 @@
     const titulo = $('#edTitulo').value.trim(); if (!titulo) { $('#edStatus').textContent = 'El título no puede estar vacío.'; return; }
     const data = { titulo, tipo: $('#edTipo').value, ambito: $('#edAmbito').value, prioridad: $('#edPrio').value, fecha_limite: $('#edFecha').value || null,
       persona: $('#edPersona').value.trim() || null, para: $('#edPara').value.trim() || null, tema: $('#edTema').value.trim() || null,
-      recurrencia: $('#edRec').value || null, detalle: $('#edDetalle').value.trim() || null };
+      recurrencia: $('#edRec').value || null, detalle: $('#edDetalle').value.trim() || null,
+      pospuesto_hasta: $('#edPosp').value || null, bloqueado_por: $('#edBloq').value || null };
     $('#edSave').disabled = true;
     const { error } = await sb.from('asuntos').update(data).eq('id', state.editing.id);
     $('#edSave').disabled = false;
@@ -949,6 +998,40 @@
     if (error) $('#edStatus').textContent = 'No se pudo eliminar (' + error.message + ').';
     else { state.items = state.items.filter((x) => x.id !== state.editing.id); closeEditor(); renderAll(); }
   });
+
+  // ---------- aplazar (V4) ----------
+  function nextMonday() { const d = today(); const n = (8 - d.getDay()) % 7 || 7; return addDays(d, n); }
+  function openLater(it) {
+    state.laterItem = it;
+    $('#lTitle').textContent = 'Aplazar';
+    $('#lSub').textContent = '«' + String(it.titulo || '').slice(0, 90) + '». ' + (it.pospuesto_hasta && daysUntil(it.pospuesto_hasta) > 0 ? 'Ahora está aplazada hasta ' + relDate(it.pospuesto_hasta) + '. Sigue en tu lista, pero no te la pongo delante hasta entonces.' : 'Sigue en tu lista, pero no te la pongo delante hasta ese día.');
+    $('#lFecha').value = ''; $('#lStatus').textContent = ''; $('#lOk').disabled = false; $('#lQuitar').hidden = !snoozed(it);
+    if (!$('#overlay').hidden) closeEditor();
+    $('#laterOverlay').hidden = false;
+  }
+  function closeLater() { $('#laterOverlay').hidden = true; state.laterItem = null; }
+  async function aplazar(hasta) { const it = state.laterItem; if (!it) return; $('#lOk').disabled = true; await patch(it, { pospuesto_hasta: hasta }); closeLater(); }
+  $('#laterOverlay').addEventListener('click', (e) => { if (e.target === $('#laterOverlay')) { closeLater(); return; } const b = e.target.closest('[data-later]'); if (!b) return; const v = b.dataset.later; aplazar(ymd(v === 'lunes' ? nextMonday() : addDays(today(), Number(v)))); });
+  $('#lOk').addEventListener('click', () => { const v = $('#lFecha').value; if (!v) { $('#lStatus').textContent = 'Elige un día o pulsa una de las opciones.'; return; } if (daysUntil(v) <= 0) { $('#lStatus').textContent = 'Tiene que ser un día posterior a hoy.'; return; } aplazar(v); });
+  $('#lQuitar').addEventListener('click', () => aplazar(null));
+  $('#lCancel').addEventListener('click', closeLater);
+
+  // ---------- Personal · próximos 30 días (V4) ----------
+  function perVencList() {
+    const fin = ymd(addDays(today(), 30));
+    return per().filter((it) => open(it) && it.tipo !== 'idea' && it.fecha_limite && it.fecha_limite <= fin && !snoozed(it)).sort((a, b) => String(a.fecha_limite).localeCompare(String(b.fecha_limite)));
+  }
+  function renderPerVenc() {
+    const el = $('#perVenc'); if (!el) return; const list = perVencList();
+    const venc = list.filter((it) => daysUntil(it.fecha_limite) < 0).length;
+    const n = $('#nPerVenc'); if (n) n.textContent = list.length ? list.length + (venc ? ' · ' + venc + (venc === 1 ? ' vencido' : ' vencidos') : '') : '';
+    const REC = { semanal: 'cada semana', mensual: 'cada mes', trimestral: 'cada trimestre', anual: 'cada año' };
+    el.innerHTML = list.length ? list.map((it) => { const d = parseYmd(it.fecha_limite); const nd = daysUntil(it.fecha_limite);
+      return '<div class="vrow' + (nd < 0 ? ' late' : nd <= 3 ? ' soon' : '') + '" data-id="' + esc(it.id) + '"><span class="vd"><b>' + d.getDate() + '</b><small>' + MES3[d.getMonth()] + '</small></span>' +
+        '<span class="vt" data-action="edit">' + esc(it.titulo) + '<small>' + esc([nd < 0 ? 'vencido ' + relDate(it.fecha_limite) : nd === 0 ? 'hoy' : nd === 1 ? 'mañana' : 'en ' + nd + ' días', it.tipo === 'vencimiento' ? 'vencimiento' : '', REC[it.recurrencia] || ''].filter(Boolean).join(' · ')) + '</small></span>' +
+        '<button class="tick" data-action="done" aria-label="Marcar como hecho"></button></div>'; }).join('')
+      : '<p class="empty-s">Nada que venza en los próximos 30 días. Suelta «seguro del coche el 12 de diciembre, cada año» y aparecerá aquí.</p>';
+  }
 
   // ---------- pedir borrador ----------
   function openMail(it, tipo) {
@@ -968,7 +1051,7 @@
     if (error) { $('#mStatus').textContent = 'No se pudo pedir (' + error.message + ').'; $('#mPedir').disabled = false; return; }
     closeMail(); await loadTable('solicitudes'); renderAll();
   });
-  document.addEventListener('keydown', (ev) => { if (ev.key !== 'Escape') return; if (!$('#fwdOverlay').hidden) closeFwd(); else if (!$('#mailOverlay').hidden) closeMail(); else if (!$('#overlay').hidden) closeEditor(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key !== 'Escape') return; if (!$('#laterOverlay').hidden) closeLater(); else if (!$('#fwdOverlay').hidden) closeFwd(); else if (!$('#mailOverlay').hidden) closeMail(); else if (!$('#overlay').hidden) closeEditor(); });
 
   // ---------- pasar al equipo (V1 · 18/10/2026) ----------
   // Prepara en Gmail un borrador de reenvío del correo original con tu nota; nunca se envía solo. Por defecto a info@cngolf.es.
@@ -1016,3 +1099,4 @@
   sb.auth.getSession().then(({ data }) => showFor(data.session));
   if ('serviceWorker' in navigator) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 })();
+
