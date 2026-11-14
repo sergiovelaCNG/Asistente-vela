@@ -1,6 +1,10 @@
 // Despacho · app de Sergio Vela. Datos en Supabase (proyecto asistente-vela), solo visibles con su sesión.
 // V3 (08/11/2026 · Sr. Vela, P109): cabecera corta + barra de saltos; tres bloques (Ahora · Hoy · Seguimiento); «Hoy» en una sola
 // tarjeta (línea del día, baldosas, turnos como franja horaria); negocio plegado; «A tu firma» con dos botones; Libreta como notas.
+// P110 (14/11/2026 · Sr. Vela): «jugadores hoy» (baldosa y tarjeta Golf) en vivo desde GolfManager vía D4, con su hora; el Informe
+// Diario de la mañana queda como respaldo y la ocupación sigue siendo la del Informe, etiquetada con su hora.
+// P111 (14/11/2026 · Sr. Vela): alquileres (buggies, carros eléctricos y manuales) como casilla propia en «Negocio de hoy», y en
+// «Hoy en el centro» filas de jugadores de golf y de alquileres con hoy · ya dados · quedan (GolfManager vía D4 V1.6.0).
 (function () {
   'use strict';
   const CONFIG = {
@@ -500,6 +504,13 @@
       golfKey ? cel(val(blq[golfKey], 'reservas'), 'golf', s7(golfKey, 'reservas'), flecha(golfKey, val(blq[golfKey], 'reservas')))
         : '<div><b>—</b><span class="et">golf</span><span>hasta el 02/11</span></div>'
     ];
+    // P111 (14/11/2026 · Sr. Vela): alquileres (buggies, carros eléctricos y manuales) como casilla propia; por la noche, los de mañana.
+    // No entran en el total de reservas (no son una unidad de negocio). Sin lectura = «—».
+    const alq = u.alquileres && u.alquileres.version === 'P111' ? u.alquileres : null;
+    const alqB = alq && alq[noche ? 'manana' : 'hoy'] ? alq[noche ? 'manana' : 'hoy'] : null;
+    const alqT = (x) => x ? (x.buggies || 0) + (x.carros_electricos || 0) + (x.carros_manuales || 0) : null;
+    cells.push(cel(alqT(alqB), 'alquileres', alqB ? (alqB.buggies || 0) + ' buggies · ' + (alqB.carros_electricos || 0) + ' eléctricos · ' + (alqB.carros_manuales || 0) + ' manuales' : 'no disponible',
+      alq && alq.d7 ? '<span class="cmp eq">7 d · ' + esc(fN(alqT(alq.d7))) + '</span>' : ''));
     // Unidades nuevas que aparezcan en GolfManager no se pierden: van detrás, con su nº de reservas.
     otras.forEach((a) => cells.push(cel(val(blq[a], 'reservas'), a, s7(a, 'reservas'))));
     cells.push('<div class="sum"><b>' + (totN === null ? '—' : esc(fN(totN))) + '</b><span class="et">reservas · total</span></div>');
@@ -574,6 +585,16 @@
     html += '<div class="aus">' + (aus.length ? 'Ausentes: ' + esc(aus.map(first).join(' · ')) + '. ' : '') + 'Cuadrante de GolfManager, no fichaje real.</div>';
     el.innerHTML = html;
   }
+  // P110 (14/11/2026 · Sr. Vela): «jugadores hoy» en vivo desde GolfManager (D4, cada 30 min: reservas activas de golf de hoy,
+  // sin buggies ni carros) con su hora; si no hay lectura de hoy, el dato del Informe Diario de la mañana, etiquetado con su hora.
+  // La ocupación sigue siendo la del Informe (GolfManager calcula el % sobre plazas que no se pueden reproducir aquí).
+  function jugadoresVivo() {
+    const vd = state.vivo && state.vivo.datos; const u = vd && vd.fecha === ymd(today()) && vd.unidades && vd.unidades.hoy ? vd.unidades : null;
+    if (!u) return null;
+    const k = Object.keys(u.hoy).find((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a));
+    const n = k && u.hoy[k] && typeof u.hoy[k].reservas === 'number' ? u.hoy[k].reservas : null; // sin lectura completa o sin golf: null, nunca 0
+    return n === null ? null : { n, hora: vd.generado ? hhmm(vd.generado) : null };
+  }
   // V3 · Baldosas de «Hoy»: semáforo del campo, jugadores, ocupación y reclamaciones (Informe Diario vía sync). Sin dato = «—».
   function renderTiles() {
     const el = $('#tiles'); if (!el) return;
@@ -582,9 +603,10 @@
     const sem = c && c.semaforo ? String(c.semaforo) : null; const semCls = sem ? (SEMCLS[sem.toLowerCase()] || '') : '';
     const tile = (val, txt, cls) => '<div><b class="' + (cls || '') + '">' + val + '</b><span>' + esc(txt) + '</span></div>';
     const rec = cl ? cl.reclamaciones_sin_respuesta : null;
+    const jv = jugadoresVivo(); const infH = hoyS && hoyS.informe_hora ? ' · informe ' + hoyS.informe_hora : '';
     el.innerHTML = tile(sem ? '<span class="dot ' + semCls + '"></span>' + esc(sem.charAt(0) + sem.slice(1).toLowerCase()) : '—', 'campo' + (c && typeof c.puntos === 'number' ? ' · ' + c.puntos + '/100' : '') + (c && c.tendencia ? ' · ' + c.tendencia : ''), semCls) +
-      tile(n.jugadores_hoy != null ? esc(String(n.jugadores_hoy)) : '—', 'jugadores hoy') +
-      tile(n.ocupacion_hoy != null ? esc(n.ocupacion_hoy + ' %') : '—', 'ocupación del campo') +
+      (jv ? tile(esc(String(jv.n)), 'jugadores hoy' + (jv.hora ? ' · GolfManager ' + jv.hora : '')) : tile(n.jugadores_hoy != null ? esc(String(n.jugadores_hoy)) : '—', 'jugadores hoy' + (n.jugadores_hoy != null ? infH : ''))) +
+      tile(n.ocupacion_hoy != null ? esc(n.ocupacion_hoy + ' %') : '—', 'ocupación del campo' + (n.ocupacion_hoy != null ? infH : '')) +
       tile(rec == null ? '—' : esc(String(rec)), rec === 1 ? 'reclamación sin respuesta' : 'reclamaciones sin respuesta', rec > 0 ? 'bad' : rec === 0 ? 'ok' : '');
   }
   // P82 (28/10/2026): «Operación de hoy» — campo, torneo del día, golf, clientes y tiempo. Todo copiado de su fuente
@@ -603,13 +625,19 @@
     if (vu) {
       const vh = vu.ventas_hoy; const hh = vu.hoy_hechas || {}; const hb = vu.hoy || {};
       // Tabla: total del día, lo ya dado (empezado a la hora de la lectura) y lo que queda.
+      // P111 (14/11/2026 · Sr. Vela): también jugadores de golf (salidas ya dadas a la hora de la lectura) y alquileres (buggies, carros).
+      const tr = (et, t, h) => '<tr><th>' + et + '</th><td>' + t + '</td><td>' + h + '</td><td>' + Math.max(0, t - h) + '</td></tr>';
+      const golfK = Object.keys(hb).find((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a));
+      const filasGolf = golfK && hb[golfK] && hb[golfK].reservas > 0 ? tr('Jugadores de golf', hb[golfK].reservas, (hh[golfK] && hh[golfK].reservas) || 0) : '';
       const FIL = [['Escuela', 'reservas', 'Clases'], ['Escuela', 'personas', 'Alumnos'], ['Fitting', 'reservas', 'Sesiones de fitting'], ['Gourmet Experience', 'reservas', 'Bahías de Gourmet'], ['Gourmet Experience', 'personas', 'Personas en Gourmet']];
-      const filas = FIL.filter(([k, c]) => hb[k] && hb[k][c] > 0).map(([k, c, et]) => { const t = hb[k][c]; const h = (hh[k] && hh[k][c]) || 0;
-        return '<tr><th>' + et + '</th><td>' + t + '</td><td>' + h + '</td><td>' + Math.max(0, t - h) + '</td></tr>'; }).join('');
+      const alq = vu.alquileres && vu.alquileres.version === 'P111' && vu.alquileres.hoy ? vu.alquileres : null;
+      const ALQ = [['buggies', 'Buggies'], ['carros_electricos', 'Carros eléctricos'], ['carros_manuales', 'Carros manuales']];
+      const filasAlq = alq ? ALQ.filter(([k]) => alq.hoy[k] > 0).map(([k, et]) => tr(et, alq.hoy[k], (alq.hoy_hechas && alq.hoy_hechas[k]) || 0)).join('') : '';
+      const filas = filasGolf + FIL.filter(([k, c]) => hb[k] && hb[k][c] > 0).map(([k, c, et]) => tr(et, hb[k][c], (hh[k] && hh[k][c]) || 0)).join('') + filasAlq;
       const din = vh && vh.version === 'P86' ? (typeof vh.anticipada === 'number' && vh.anticipada > 0 && typeof vh.total === 'number' ? '<p>De lo facturado hoy: <b>' + esc(eur(vh.anticipada)) + '</b> para otros días (reservas futuras, p. ej. Gourmet) · <b>' + esc(eur(vh.total - vh.anticipada)) + '</b> para hoy</p>' : '') + '<p class="muted">Con IVA · sin borradores ni recargas' + (vh.completo === false ? ' · lectura incompleta' : '') + '</p>'
         : '<p class="muted">Ventas de hoy: no disponibles en esta lectura.</p>';
       const cuerpo = din + (filas ? '<table class="tdia"><thead><tr><th></th><th>Hoy</th><th>Ya dadas</th><th>Quedan</th></tr></thead><tbody>' + filas + '</tbody></table>'
-        : '<p class="muted">Hoy no hay clases ni sesiones reservadas.</p>');
+        : '<p class="muted">Hoy no hay salidas, clases ni sesiones reservadas.</p>');
       cards.push(cardOp('Hoy en el centro · ' + esc(hhmm(vd.generado)), cuerpo, 'Ventas registradas en GolfManager (no es contabilidad). Golf desde el 02/11.'));
     }
     // Campo (parte del día: siempre el de hoy; por la noche se avisa de que es el de hoy)
@@ -660,8 +688,10 @@
     }
     // Golf: green fees, ocupación, internacionales (desde el 02/11)
     const n = hoyS && hoyS.negocio || {};
-    const kp = [['Green fees ayer', n.green_fees_ayer != null ? String(n.green_fees_ayer) : null], ['Ocupación hoy', n.ocupacion_hoy != null ? n.ocupacion_hoy + ' %' : null],
-      ['Jugadores hoy', n.jugadores_hoy != null ? String(n.jugadores_hoy) : null], ['Internacionales', n.cuota_internacional != null ? n.cuota_internacional + ' %' : null]];
+    const jv = jugadoresVivo(); // P110: jugadores de hoy en vivo (GolfManager vía D4); si no, el Informe Diario
+    const kp = [['Green fees ayer', n.green_fees_ayer != null ? String(n.green_fees_ayer) : null], ['Ocupación hoy' + (n.ocupacion_hoy != null && hoyS && hoyS.informe_hora ? ' · informe ' + hoyS.informe_hora : ''), n.ocupacion_hoy != null ? n.ocupacion_hoy + ' %' : null],
+      jv ? ['Jugadores hoy' + (jv.hora ? ' · GolfManager ' + jv.hora : ''), String(jv.n)] : ['Jugadores hoy' + (n.jugadores_hoy != null && hoyS && hoyS.informe_hora ? ' · informe ' + hoyS.informe_hora : ''), n.jugadores_hoy != null ? String(n.jugadores_hoy) : null],
+      ['Internacionales', n.cuota_internacional != null ? n.cuota_internacional + ' %' : null]];
     const algunGolf = kp.some((x) => x[1] != null);
     cards.push(cardOp('Golf', '<div class="kpis">' + kp.map(([k, x]) => '<div><b>' + esc(x == null ? '—' : x) + '</b><span>' + esc(k) + '</span></div>').join('') + '</div>',
       algunGolf ? '' : 'Sin datos hasta el paso a GolfManager (02/11).'));
