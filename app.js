@@ -9,6 +9,9 @@
 // reservadas en GolfManager a su nombre no son reuniones (una línea plegada, fuera de choques y cifras); el parte marca lo nuevo y dice
 // «sin cambios» cuando repite; asunto vacío del buzón con respaldo; aplazar (mañana · lunes · semana · fecha) y «esperando a» en el editor;
 // estado tranquilo cuando no hay nada suyo; Personal con vencimientos de 30 días.
+// V4.1 (15/11/2026 · Sr. Vela): de medianoche a la primera lectura del día, «Hoy», «Trabajan hoy» y la ocupación usan el bloque
+// «mañana» de la última lectura de GolfManager de ayer, etiquetado «de ayer HH:MM». Lo que no trae ese bloque (ventas de hoy,
+// ya dadas) sale «no disponible», nunca 0. El Informe Diario (campo, clientes) sigue esperando a la sincronización de la mañana.
 (function () {
   'use strict';
   const CONFIG = {
@@ -29,7 +32,7 @@
   // La barra de saltos abre el desplegable al que lleva.
   document.addEventListener('click', (ev) => { const a = ev.target.closest('.jumps a'); if (!a) return; const t = document.querySelector(a.getAttribute('href')); const d = t && t.closest('details'); if (d && !d.open) d.open = true; });
   const sb = window.supabase.createClient(CONFIG.url, CONFIG.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-  const state = { items: [], view: 'cng', events: [], prep: {}, briefing: null, briefingPrev: null, revision: null, libreta: [], solicitudes: [], sync: null, semana: null, editing: null, busy: false, mailItem: null, loaded: false };
+  const state = { items: [], view: 'cng', events: [], prep: {}, briefing: null, briefingPrev: null, revision: null, libreta: [], solicitudes: [], sync: null, vivoRaw: null, semana: null, editing: null, busy: false, mailItem: null, loaded: false };
   const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   const DIAS3 = ['dom','lun','mar','mié','jue','vie','sáb'];
   const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -48,6 +51,18 @@
   function daysUntil(s) { const d = parseYmd(s); return d ? Math.round((d - today()) / 86400000) : null; }
   function localDay(iso) { if (!iso) return null; const d = new Date(iso); return isNaN(d) ? null : ymd(d); }
   function hhmm(iso) { const d = new Date(iso); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  // V4.1: lectura de GolfManager válida para hoy. Si es de ayer y trae el bloque «mañana», ese bloque pasa a ser el de hoy.
+  function vivoDelDia(raw) {
+    const d = raw && raw.datos; if (!d || d.fecha === ymd(today())) return raw;
+    const u = d.unidades; if (d.fecha !== ymd(addDays(today(), -1)) || !u || !u.manana || typeof u.manana !== 'object') return raw;
+    const mov = (x, extra) => x && typeof x === 'object' ? Object.assign({}, x, { hoy: x.manana, manana: null }, extra || {}) : x;
+    const u2 = Object.assign({}, u, { hoy: u.manana, manana: null, ventas_hoy: null, hoy_hechas: null,
+      turnos: mov(u.turnos), torneos_gm: mov(u.torneos_gm), alquileres: mov(u.alquileres, { hoy_hechas: null }) });
+    const cmp = d.comparativa && d.comparativa.manana ? { hoy: d.comparativa.manana } : null;
+    return Object.assign({}, raw, { datos: Object.assign({}, d, { fecha: ymd(today()), unidades: u2, comparativa: cmp, deAyer: true }) });
+  }
+  Object.defineProperty(state, 'vivo', { get() { return vivoDelDia(this.vivoRaw); }, set(v) { this.vivoRaw = v; } });
+  const horaVivo = (d) => d && d.generado ? (d.deAyer ? 'de ayer ' : '') + hhmm(d.generado) : '';
   function fmtShort(s) { const d = parseYmd(s); return d ? DIAS3[d.getDay()] + ' ' + d.getDate() : ''; }
   function relDate(s) { const n = daysUntil(s); if (n === null) return ''; if (n === 0) return 'hoy'; if (n === 1) return 'mañana'; if (n === -1) return 'ayer'; if (n < 0) return 'hace ' + (-n) + ' d'; return fmtShort(s); }
   function ago(iso) { const d = localDay(iso); if (!d) return ''; const n = -daysUntil(d); return n <= 0 ? 'hoy' : n === 1 ? 'ayer' : 'hace ' + n + ' d'; }
@@ -557,7 +572,7 @@
     otras.forEach((a) => cells.push(cel(val(blq[a], 'reservas'), a, s7(a, 'reservas'))));
     cells.push('<div class="sum"><b>' + (totN === null ? '—' : esc(fN(totN))) + '</b><span class="et">reservas · total</span></div>');
     el.hidden = false;
-    el.innerHTML = '<p class="bizcap">Ocupación ' + cuando + ' · GolfManager ' + esc(hhmm(d.generado)) + (u.completo ? '' : ' · <b>lectura incompleta</b>') + '</p><div class="biz occ">' + cells.join('') + '</div>';
+    el.innerHTML = '<p class="bizcap">Ocupación ' + cuando + ' · GolfManager ' + esc(horaVivo(d)) + (u.completo ? '' : ' · <b>lectura incompleta</b>') + '</p><div class="biz occ">' + cells.join('') + '</div>';
     if (!u.completo) return { n: null, cuando };
     return { n: Object.keys(blq).reduce((t, a) => t + (val(blq[a], 'reservas') || 0), 0), cuando };
   }
@@ -583,7 +598,7 @@
     if (res && res.n !== null) partes.push(res.n + ' reservas ' + res.cuando); else if (res) partes.push('ocupación ' + res.cuando + ' (lectura incompleta)');
     if (fac) partes.push('facturado ' + fac);
     $('#negT').textContent = partes.length ? partes.join(' · ') : 'Negocio de hoy';
-    $('#negS').textContent = 'GolfManager' + (vd && vd.generado ? ' ' + hhmm(vd.generado) : '') + ' · ocupación por unidad y ventas del día';
+    $('#negS').textContent = 'GolfManager' + (vd && vd.generado ? ' ' + horaVivo(vd) : '') + ' · ocupación por unidad y ventas del día';
   }
   // P81 (28/10/2026): quién trabaja en Caddy Master, Gestión de Juego y Fitting (turnos de GolfManager vía D4).
   // V3 (08/11/2026 · Sr. Vela): como franja horaria, una barra por persona agrupada por departamento, con la hora actual marcada;
@@ -611,7 +626,7 @@
     const names = {}; todos.forEach((p) => { const f = first(p.nombre); names[f] = (names[f] || 0) + 1; });
     const label = (p) => { const parts = String(p.nombre || '').trim().split(/\s+/); const f = parts[0] || ''; return names[f] > 1 && parts[1] ? f + ' ' + parts[1].charAt(0) + '.' : f; };
     const dentroN = nowPct === null ? null : todos.filter((p) => { const a = toMin(p.desde), b = toMin(p.hasta); return a !== null && b !== null && a <= nowMin && nowMin < b; }).length;
-    if (tS) tS.textContent = [todos.length + (todos.length === 1 ? ' persona' : ' personas'), dentroN === null ? null : dentroN + ' ahora dentro', aus.length ? aus.length + (aus.length === 1 ? ' ausencia' : ' ausencias') : null, 'GolfManager ' + hhmm(d.generado)].filter(Boolean).join(' · ');
+    if (tS) tS.textContent = [todos.length + (todos.length === 1 ? ' persona' : ' personas'), dentroN === null ? null : dentroN + ' ahora dentro', aus.length ? aus.length + (aus.length === 1 ? ' ausencia' : ' ausencias') : null, 'GolfManager ' + horaVivo(d)].filter(Boolean).join(' · ');
     let html = '<div class="ticks"' + nowStyle + '><span></span><span class="track">' + ticks.join('') + (nowPct === null ? '' : '<b></b>') + '</span></div>';
     DEPS.forEach((dep) => {
       const gente = (Array.isArray(blq[dep]) ? blq[dep] : []).filter((p) => !p.ausente);
@@ -635,7 +650,7 @@
     if (!u) return null;
     const k = Object.keys(u.hoy).find((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a));
     const n = k && u.hoy[k] && typeof u.hoy[k].reservas === 'number' ? u.hoy[k].reservas : null; // sin lectura completa o sin golf: null, nunca 0
-    return n === null ? null : { n, hora: vd.generado ? hhmm(vd.generado) : null };
+    return n === null ? null : { n, hora: vd.generado ? horaVivo(vd) : null };
   }
   // V3 · Baldosas de «Hoy»: semáforo del campo, jugadores, ocupación y reclamaciones (Informe Diario vía sync). Sin dato = «—».
   function renderTiles() {
@@ -680,7 +695,7 @@
         : '<p class="muted">Ventas de hoy: no disponibles en esta lectura.</p>';
       const cuerpo = din + (filas ? '<table class="tdia"><thead><tr><th></th><th>Hoy</th><th>Ya dadas</th><th>Quedan</th></tr></thead><tbody>' + filas + '</tbody></table>'
         : '<p class="muted">Hoy no hay salidas, clases ni sesiones reservadas.</p>');
-      cards.push(cardOp('Hoy en el centro · ' + esc(hhmm(vd.generado)), cuerpo, 'Ventas registradas en GolfManager (no es contabilidad). Golf desde el 02/11.'));
+      cards.push(cardOp('Hoy en el centro · ' + esc(horaVivo(vd)), cuerpo, 'Ventas registradas en GolfManager (no es contabilidad). Golf desde el 02/11.'));
     }
     // Campo (parte del día: siempre el de hoy; por la noche se avisa de que es el de hoy)
     const c = hoyS && hoyS.campo;
