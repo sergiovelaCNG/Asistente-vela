@@ -559,9 +559,9 @@
     // P111 (14/11/2026 · Sr. Vela): alquileres (buggies, carros eléctricos y manuales) como casilla propia; por la noche, los de mañana.
     // No entran en el total de reservas (no son una unidad de negocio). Sin lectura = «—».
     const alq = u.alquileres && u.alquileres.version === 'P111' ? u.alquileres : null;
-    const alqB = alq && alq[noche ? 'manana' : 'hoy'] ? alq[noche ? 'manana' : 'hoy'] : null;
-    const alqT = (x) => x ? (x.buggies || 0) + (x.carros_electricos || 0) + (x.carros_manuales || 0) : null;
-    cells.push(cel(alqT(alqB), 'alquileres', alqB ? (alqB.buggies || 0) + ' buggies · ' + (alqB.carros_electricos || 0) + ' eléctricos · ' + (alqB.carros_manuales || 0) + ' manuales' : 'no disponible',
+    const alqK = noche && alq && alq.fuente !== 'ventas' ? 'manana' : 'hoy'; const alqB = alq && alq[alqK] ? alq[alqK] : null;
+    const alqT = (x) => x ? (x.buggies || 0) + (x.carros_electricos || 0) + (x.carros_manuales || 0) + (x.sets_palos || 0) + (x.palos_sueltos || 0) : null;
+    cells.push(cel(alqT(alqB), 'alquileres', alqB ? (alqB.buggies || 0) + ' buggies · ' + (alqB.carros_electricos || 0) + ' eléctricos · ' + (alqB.carros_manuales || 0) + ' manuales' + ((alqB.sets_palos || 0) + (alqB.palos_sueltos || 0) ? ' · ' + (alqB.sets_palos || 0) + ' sets de palos · ' + (alqB.palos_sueltos || 0) + ' palos sueltos' : '') : 'no disponible',
       alq && alq.d7 ? '<span class="cmp eq">7 d · ' + esc(fN(alqT(alq.d7))) + '</span>' : ''));
     // Unidades nuevas que aparezcan en GolfManager no se pierden: van detrás, con su nº de reservas.
     otras.forEach((a) => cells.push(cel(val(blq[a], 'reservas'), a, s7(a, 'reservas'))));
@@ -683,7 +683,7 @@
       const filasGolf = golfK && hb[golfK] && hb[golfK].reservas > 0 ? tr('Jugadores de golf', hb[golfK].reservas, (hh[golfK] && hh[golfK].reservas) || 0) : '';
       const FIL = [['Escuela', 'reservas', 'Clases'], ['Escuela', 'personas', 'Alumnos'], ['Fitting', 'reservas', 'Sesiones de fitting'], ['Gourmet Experience', 'reservas', 'Bahías de Gourmet'], ['Gourmet Experience', 'personas', 'Personas en Gourmet']];
       const alq = vu.alquileres && vu.alquileres.version === 'P111' && vu.alquileres.hoy ? vu.alquileres : null;
-      const ALQ = [['buggies', 'Buggies'], ['carros_electricos', 'Carros eléctricos'], ['carros_manuales', 'Carros manuales']];
+      const ALQ = [['buggies', 'Buggies'], ['carros_electricos', 'Carros eléctricos'], ['carros_manuales', 'Carros manuales'], ['sets_palos', 'Sets de palos'], ['palos_sueltos', 'Palos sueltos']];
       const filasAlq = alq ? ALQ.filter(([k]) => alq.hoy[k] > 0).map(([k, et]) => tr(et, alq.hoy[k], (alq.hoy_hechas && alq.hoy_hechas[k]) || 0)).join('') : '';
       const filas = filasGolf + FIL.filter(([k, c]) => hb[k] && hb[k][c] > 0).map(([k, c, et]) => tr(et, hb[k][c], (hh[k] && hh[k][c]) || 0)).join('') + filasAlq;
       const din = vh && vh.version === 'P86' ? (typeof vh.anticipada === 'number' && vh.anticipada > 0 && typeof vh.total === 'number' ? '<p>De lo facturado hoy: <b>' + esc(eur(vh.anticipada)) + '</b> para otros días (reservas futuras, p. ej. Gourmet) · <b>' + esc(eur(vh.total - vh.anticipada)) + '</b> para hoy</p>' : '') + '<p class="muted">Con IVA · sin borradores ni recargas' + (vh.completo === false ? ' · lectura incompleta' : '') + '</p>'
