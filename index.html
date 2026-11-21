@@ -7,44 +7,48 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Despacho">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#15375d">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0A1220">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap">
+<script>try { var t = localStorage.getItem('dp6.theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); } catch (e) {}</script>
 <style>
-
-/* V4 (14/11/2026 · Sr. Vela): azul institucional en lugar del verde, tarjetas más limpias (borde fino, sin sombra, más aire),
-   titulares con serifa (Newsreader) para darle clase; cuatro bloques: AHORA · LO TUYO · EL CENTRO · EQUIPO · SEGUIMIENTO. */
+/* Despacho V6 (21/11/2026 · Sr. Vela): tablero de inicio en casillas, cuatro pestañas (Inicio · Lo tuyo · Centro · Clientes) con barra
+   inferior y micrófono, módulos plegables, escudo del CNG, modo noche y día. Tipografías servidas desde la propia carpeta. */
+@font-face { font-family: "Newsreader"; font-weight: 400; font-display: swap; src: url(fonts/newsreader-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Newsreader"; font-weight: 500; font-display: swap; src: url(fonts/newsreader-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Schibsted Grotesk"; font-weight: 400; font-display: swap; src: url(fonts/schibsted-grotesk-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Schibsted Grotesk"; font-weight: 500; font-display: swap; src: url(fonts/schibsted-grotesk-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Schibsted Grotesk"; font-weight: 600; font-display: swap; src: url(fonts/schibsted-grotesk-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Schibsted Grotesk"; font-weight: 700; font-display: swap; src: url(fonts/schibsted-grotesk-latin-700-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: swap; src: url(fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2"); }
 :root {
-  --bg: #f3f5f8; --paper: #ffffff; --ink: #0f1b2d; --muted: #5f6b7a; --line: #dfe4ea; --line-2: #ecf0f4;
-  --accent: #15375d; --accent-2: #1f5c99; --accent-soft: #e8eef6; --on-accent: #f5f8fc; --on-accent-mut: #a9bfd8;
-  --accent-deep: #0e2743; --btn: #15375d; --card-edge: transparent;
+  --bg: #f2f4f7; --paper: #ffffff; --rise: #f7f9fb; --ink: #0f1b2d; --muted: #556273; --line: #dce2ea; --line-2: #e9edf2;
+  --accent: #15375d; --accent-2: #1f5c99; --accent-soft: #e8eef6; --on-accent: #f5f8fc; --btn: #15375d; --gold: #8a6508; --on-gold: #ffffff;
   --flag: #8a6508; --flag-dot: #c99a1e; --flag-soft: #f8f0d8; --note: #fbf7e9; --note-line: #ecdfb4;
-  --crit: #b23a30; --crit-soft: #f8e5e2; --ok: #1d7a52; --scrim: rgba(8, 16, 28, .5);
-  --shadow: none;
-  --r-lg: 20px; --r-md: 16px; --r-sm: 10px;
+  --crit: #b23a30; --crit-soft: #f8e5e2; --crit-line: #e3b4ad; --ok: #1d7a52; --scrim: rgba(8, 16, 28, .5);
+  --dock: rgba(255, 255, 255, .88); --hi: 0 1px 2px rgba(15, 27, 45, .05); --halo: .14;
+  --r-lg: 20px; --r-md: 20px; --r-sm: 12px;
   --font: "Schibsted Grotesk", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   --serif: "Newsreader", "Iowan Old Style", "Times New Roman", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b1320; --paper: #121d2d; --ink: #e8edf4; --muted: #94a3b6; --line: #243448; --line-2: #1b2a3c;
-    --accent: #0f2a47; --accent-2: #86b6e8; --accent-soft: #172a40; --on-accent: #eef3f9; --on-accent-mut: #8fa9c6;
-    --accent-deep: #0a1d33; --btn: #1f5c99; --card-edge: rgba(255, 255, 255, .09);
-    --flag: #e3b545; --flag-dot: #e3b545; --flag-soft: #35300f; --note: #2a2516; --note-line: #4a3f1c; --crit: #ef8a7e; --crit-soft: #3a201c; --ok: #6cc093;
-    --scrim: rgba(0, 0, 0, .62); --shadow: none; color-scheme: dark;
+    --bg: #0a1220; --paper: #101b2d; --rise: #16243a; --ink: #eef2f7; --muted: #9fb0c5; --line: #22344d; --line-2: #1a2a40;
+    --accent: #7fb2f0; --accent-2: #7fb2f0; --accent-soft: #15263d; --on-accent: #0a1220; --btn: #eef2f7; --gold: #d9b36a; --on-gold: #0a1220;
+    --flag: #e3b545; --flag-dot: #e3b545; --flag-soft: #35300f; --note: #2a2516; --note-line: #4a3f1c;
+    --crit: #f08a7b; --crit-soft: #33201f; --crit-line: #6b3a36; --ok: #6fcf9b; --scrim: rgba(0, 0, 0, .62);
+    --dock: rgba(16, 27, 45, .84); --hi: inset 0 1px 0 rgba(255, 255, 255, .05); --halo: .16; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0b1320; --paper: #121d2d; --ink: #e8edf4; --muted: #94a3b6; --line: #243448; --line-2: #1b2a3c;
-  --accent: #0f2a47; --accent-2: #86b6e8; --accent-soft: #172a40; --on-accent: #eef3f9; --on-accent-mut: #8fa9c6;
-  --accent-deep: #0a1d33; --btn: #1f5c99; --card-edge: rgba(255, 255, 255, .09);
-  --flag: #e3b545; --flag-dot: #e3b545; --flag-soft: #35300f; --note: #2a2516; --note-line: #4a3f1c; --crit: #ef8a7e; --crit-soft: #3a201c; --ok: #6cc093;
-  --scrim: rgba(0, 0, 0, .62); --shadow: none; color-scheme: dark;
+  --bg: #0a1220; --paper: #101b2d; --rise: #16243a; --ink: #eef2f7; --muted: #9fb0c5; --line: #22344d; --line-2: #1a2a40;
+  --accent: #7fb2f0; --accent-2: #7fb2f0; --accent-soft: #15263d; --on-accent: #0a1220; --btn: #eef2f7; --gold: #d9b36a; --on-gold: #0a1220;
+  --flag: #e3b545; --flag-dot: #e3b545; --flag-soft: #35300f; --note: #2a2516; --note-line: #4a3f1c;
+  --crit: #f08a7b; --crit-soft: #33201f; --crit-line: #6b3a36; --ok: #6fcf9b; --scrim: rgba(0, 0, 0, .62);
+  --dock: rgba(16, 27, 45, .84); --hi: inset 0 1px 0 rgba(255, 255, 255, .05); --halo: .16; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -532,144 +536,406 @@ details.opdet .op { box-shadow: none; }
 .vt small { display: block; font-size: 13px; color: var(--muted); font-weight: 400; margin-top: 1px; }
 .vrow.late .vt small { color: var(--crit); }
 #semana li .r { white-space: normal; }
+
+/* ================= V6 ================= */
+body { padding: max(10px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(116px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); font-size: 15px; line-height: 1.45; }
+.app { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.panel, section.tab { display: flex; flex-direction: column; gap: 10px; }
+.lab, .label.mono { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* Cabecera con escudo */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; }
+.top .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.crest { flex: none; width: 37px; height: 40px; background: var(--ink); -webkit-mask: url(escudo.png) center / contain no-repeat; mask: url(escudo.png) center / contain no-repeat; }
+.top .hi { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.top h1 { font-family: var(--serif); font-size: clamp(16px, 4.5vw, 20px); line-height: 1.15; font-weight: 500; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.live { display: flex; align-items: center; gap: 8px; }
+.live i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.live i.on { background: var(--ok); }
+.seg { flex: none; display: flex; align-items: center; height: 44px; padding: 0 4px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; }
+.seg button { height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; }
+.seg button span { display: block; padding: 7px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg button[aria-selected="true"] span { background: var(--btn); color: var(--on-accent); }
+#dateLine { font-size: 11px; color: var(--muted); white-space: nowrap; }
+#greet { color: var(--ink); }
+.fresh { margin: 0 4px; }
+.fresh.late { margin: 0; }
+
+/* Tablero de inicio */
+.bento { display: flex; flex-direction: column; gap: 8px; }
+.bento .r2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.bento .r3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tile { position: relative; display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; min-height: 44px; padding: 10px 14px; text-align: left; border-radius: 20px; background: var(--paper); border: 1px solid var(--line); box-shadow: var(--hi); color: var(--ink); font: inherit; }
+button.tile { cursor: pointer; }
+.tile.crit { background: var(--crit-soft); border-color: var(--crit-line); }
+.tile.nw::after { content: ""; position: absolute; top: 12px; right: 12px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); }
+.tile .big { font-family: var(--serif); font-size: 30px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tile .big.m { font-size: 22px; }
+.tile .big.gold { color: var(--gold); } .tile .big.crit { color: var(--crit); } .tile .big.ok { color: var(--ok); } .tile .big.dim { color: var(--muted); }
+.tile .sub { font-size: 12.5px; line-height: 1.3; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tile .sub.wrap { white-space: normal; }
+.tile .sub.strong { color: var(--ink); font-weight: 600; }
+.tile .sub.crit, .tile .sub b.crit { color: var(--crit); font-weight: 600; }
+.tile .name { font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tile .rowb { display: flex; align-items: baseline; gap: 8px; min-width: 0; max-width: 100%; }
+.tile .rowc { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.tile .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.tile .dot.ok { background: var(--ok); } .tile .dot.warn { background: var(--flag-dot); } .tile .dot.bad { background: var(--crit); }
+.tile .bar { display: block; width: 100%; height: 3px; margin-top: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.tile .bar i { display: block; height: 3px; border-radius: 2px; background: var(--gold); }
+.tile.stale .big, .tile.stale .name { color: var(--muted); }
+.tile.stale .bar i { background: var(--muted); }
+.tile .thead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.tile .novn { display: flex; align-items: center; gap: 6px; color: var(--accent-2); }
+.tile .novn::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); }
+.tile .novn:empty { display: none; }
+#tDia { gap: 6px; }
+#tDia .dialw { display: flex; justify-content: center; }
+#tDia .nx { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+#tDia .nx > span:first-child { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+#tDia .nx .what { font-size: 16px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tTorneo .trow { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+#tTorneo .trow > span:first-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+#tTorneo .trow > .rowb { flex: none; }
+#tTorneo .trow > .rowb .sub { overflow: visible; }
+#tViene { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; padding-bottom: 8px; }
+#tViene .lab { flex: none; }
+#tViene .go { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--muted); }
+#tViene .go .sub { color: var(--ink); font-weight: 500; }
+.dial { display: block; width: 100%; max-width: 340px; height: auto; }
+.dial .rest { stroke: var(--line); } .dial .done, .dial .now { stroke: var(--gold); } .dial .tk { stroke: var(--muted); }
+.dial text { fill: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 500; }
+.dial .evp { fill: var(--paper); stroke: var(--muted); } .dial .evn { fill: var(--ink); stroke: var(--paper); }
+.dial .evc { fill: var(--crit); stroke: var(--paper); } .dial .evr { fill: var(--paper); stroke: var(--ink); }
+.dial .halo { fill: var(--gold); opacity: var(--halo); }
+
+/* Parte dentro del tablero */
+.parte { padding: 0; gap: 6px; }
+.parte p { font-size: 16.5px; line-height: 1.32; max-width: none; }
+.parte p + p { font-family: var(--font); font-size: 13.5px; line-height: 1.4; }
+.parte p.new { padding-left: 12px; }
+.parte p.new::before { left: 0; top: .5em; }
+.parte .calm { border: 0; background: none; padding: 0; font-size: 13.5px; }
+.parte .when { font-size: 12px; }
+#tParte.cut .parte p + p, #tParte.cut .parte .since, #tParte.cut .parte .when { display: none; }
+#tParte.cut .parte .calm { display: block; }
+.mas { align-self: flex-start; min-height: 44px; margin: -8px 0 -12px; padding: 0; border: 0; background: none; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-2); }
+.mas[hidden] { display: none; }
+
+/* Módulos plegables */
+details.neg { border-radius: 20px; box-shadow: var(--hi); }
+details.neg > summary { padding: 8px 8px 8px 16px; min-height: 60px; display: flex; align-items: center; }
+details.neg .sum { flex: 1; grid-template-columns: minmax(0, 1fr) 44px; gap: 1px 12px; }
+details.neg .sum .t { font-size: 16px; letter-spacing: -.01em; }
+details.neg .sum .s { font-size: 12.5px; line-height: 1.3; }
+details.neg .sum .chev { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+details.neg .sum .chev svg { transition: transform .2s; }
+details.neg[open] .chev { transform: none; }
+details.neg[open] .chev svg { transform: rotate(180deg); }
+details.neg[open] > summary { border-bottom: 1px solid var(--line); }
+details.neg > .fl { border-top: 0; padding: 0 12px 6px 16px; }
+details.neg > .tl, details.neg > .staff, details.neg > .opgrid, details.neg > .eqwrap, details.neg > .libwrap, details.neg > #delegado, details.neg > .radar, details.neg > #bizres, details.neg > #biztot { border-top: 0; }
+details.neg > .tl { padding: 2px 16px 8px; }
+details.neg > .folds { border: 0; border-radius: 0; background: none; }
+.shead h2 { font-family: var(--serif); font-size: 22px; font-weight: 500; }
+.shead { justify-content: space-between; padding: 6px 4px 0; }
+.empty-s { padding: 10px 16px 12px; font-size: 14px; }
+section > .empty-s, #firma > .empty-s { padding-left: 4px; }
+
+/* Franja de pulso */
+.pulse, .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.pulse > div, .tiles > div { display: flex; flex-direction: column; gap: 3px; padding: 9px 4px 9px 12px; border-left: 1px solid var(--line); min-width: 0; }
+.pulse > div:first-child, .tiles > div:first-child { border-left: 0; padding-left: 4px; }
+.pulse b, .tiles b { font-family: var(--serif); font-size: 21px; line-height: 1; font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pulse b.crit { color: var(--crit); }
+.pulse span, .tiles span { font-size: 12px; line-height: 1.2; color: var(--muted); }
+.tiles .dot { width: 8px; height: 8px; }
+@media (max-width: 380px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } .tiles div:nth-child(3) { border-left: 1px solid var(--line); } .tiles div:nth-child(n+3) { border-top: 0; } }
+
+/* A tu firma: sin franja lateral; el número lleva el aviso */
+.firma { border-radius: 20px; padding: 16px; box-shadow: var(--hi); }
+.firma::before { display: none; }
+.fnum { background: none; border: 1.5px solid var(--accent-2); font-family: var(--serif); font-weight: 500; font-size: 15px; }
+.firma.urg .fnum { background: none; border-color: var(--crit); }
+.reco b, .nov b, .since b { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+
+/* Tamaños para el dedo */
+.btn { min-height: 44px; padding: 0 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
+.btn.ghost { padding-inline: 12px; }
+.mini { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; font-size: 13.5px; }
+.tick { position: relative; width: 26px; height: 26px; margin: 1px 2px 0 0; }
+.tick::after { content: ""; position: absolute; inset: -9px; }
+.fl li { padding: 13px 0; align-items: center; }
+.fl li .t { padding: 2px 0; }
+details.fold > summary { min-height: 52px; padding: 8px 16px; }
+details.res > summary { min-height: 44px; display: flex; align-items: center; }
+.eqlist .asu a, .tl .s a { padding: 4px 0; display: inline-block; }
+.staff .row.now .bar { background: var(--gold); color: var(--on-gold); border-left: 0; }
+.staff .bar { border-left: 0; border-radius: 6px; background: var(--rise); border: 1px solid var(--line); color: var(--muted); }
+.staff .bar small { font-family: var(--mono); font-size: 11px; font-weight: 500; }
+.staff .track { background: var(--bg); height: 24px; border-radius: 6px; }
+.staff .ticks i { font-family: var(--mono); }
+.staff .grp { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .08em; }
+.vd { color: var(--accent-2); }
+.biz.occ b, .fact b, .kpis b, details.neg .fact b { font-family: var(--serif); font-weight: 500; letter-spacing: 0; color: var(--ink); }
+details.neg .biz.occ .sum { grid-column: 1 / -1; flex-direction: row; align-items: baseline; gap: 10px; border-top: 1px solid var(--line-2); border-left: 0; }
+details.neg .fact { background: var(--rise); }
+.tl .t, .ev .t, .radar .d, .eqlist .age { font-family: var(--mono); font-weight: 500; }
+.tl .ev.res .t { font-family: var(--mono); font-size: 14px; }
+.eqlist .age { font-size: 14px; letter-spacing: 0; }
+.eqlist .age small { font-size: 12px; margin-left: 3px; }
+.eqlist { border: 0; background: none; padding: 0; }
+.opgrid { grid-template-columns: 1fr; }
+.op { border-radius: 16px; border-top-width: 1px; background: var(--rise); }
+.op.ok, .op.warn, .op.bad { border-top-color: var(--line); }
+.day { border: 0; background: none; padding: 0 16px 4px; border-radius: 0; }
+.radar { border: 0; border-radius: 0; background: none; border-top: 1px solid var(--line); }
+#per .fl, #per details.fold, .venc, .list, .turnos, .tema, .folds, .soltar { border-radius: 20px; }
+.notes .nt { border-radius: 16px; }
+
+/* Tendencia de 7 días */
+.tend { padding: 12px 16px 14px; border-top: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; }
+.tend .bars { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; align-items: end; height: 92px; }
+.tend .col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; height: 100%; min-width: 0; }
+.tend .col i { display: block; width: 100%; border-radius: 4px 4px 2px 2px; background: var(--line); min-height: 2px; }
+.tend .col.hoy i { background: var(--gold); }
+.tend .col b { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--ink); }
+.tend .col small { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; }
+.tend p { font-size: 12.5px; color: var(--muted); }
+
+/* Clientes */
+.crow { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; min-height: 58px; padding: 7px 0; border-top: 1px solid var(--line-2); color: var(--ink); text-decoration: none; }
+.crow:first-child { border-top: 0; }
+.crow .age { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--muted); }
+.crow.hot .age { color: var(--crit); }
+.crow .ct { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.crow .ct b { font-size: 15px; line-height: 1.3; font-weight: 600; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.crow .ct span { font-size: 12.5px; line-height: 1.3; color: var(--muted); }
+.crow .ct span em { font-style: normal; font-weight: 600; color: var(--ink); }
+.crow.hot .ct span em { color: var(--crit); }
+.crow .go { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.cbody { padding: 0 8px 6px 16px; }
+.cnote { padding: 12px 16px 14px; font-size: 14px; color: var(--muted); }
+.cnote b { color: var(--ink); font-weight: 600; }
+
+/* Barra inferior */
+.dock { position: fixed; z-index: 10; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: min(396px, calc(100% - 28px)); height: 64px; display: flex; align-items: center; padding: 0 6px; border-radius: 32px; background: var(--dock); border: 1px solid var(--line); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: 0 12px 32px rgba(0, 0, 0, .22); }
+.dock [data-tab] { position: relative; flex: 1; min-width: 0; height: 64px; border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.dock [data-tab]::after { content: ""; width: 4px; height: 4px; border-radius: 50%; }
+.dock [data-tab].on { color: var(--ink); }
+.dock [data-tab].on::after { background: var(--gold); }
+.dock [data-tab] i { position: absolute; top: 4px; left: 50%; margin-left: 6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent-2); color: var(--bg); font-style: normal; font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; }
+.dock [data-tab] i.crit { background: var(--crit); }
+.dock .orb { flex: none; width: 64px; height: 64px; margin: -14px 6px 0; border-radius: 50%; border: 1.5px solid var(--gold); background: var(--bg); color: var(--gold); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0, 0, 0, .28); }
+
+/* Hoja de dictado */
+.sheet { background: var(--paper); border-radius: 24px 24px 0 0; width: min(560px, 100%); padding: 16px 18px calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 700px) { .sheet { border-radius: 24px; } }
+.sheet .shd { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.sheet .shd label { font-size: 15px; font-weight: 600; }
+.sheet textarea { width: 100%; min-height: 110px; resize: none; border: 0; background: transparent; padding: 0; font-family: var(--serif); font-size: 22px; line-height: 1.3; font-weight: 500; color: var(--ink); }
+.sheet textarea:focus { outline: none; }
+.sheet textarea::placeholder { color: var(--muted); }
+.sheet .srow { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.iconbtn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
+.chipbtn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+.chipbtn[aria-pressed="true"] { background: var(--crit-soft); border-color: var(--crit-line); color: var(--crit); }
+.mic { width: 52px; height: 52px; border: 1.5px solid var(--gold); background: var(--bg); color: var(--gold); display: inline-flex; align-items: center; justify-content: center; }
+.mic[aria-pressed="true"] { background: var(--crit-soft); border-color: var(--crit); color: var(--crit); }
+
+/* Aviso con deshacer */
+.toast { position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); width: min(396px, calc(100% - 28px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 18px; background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 500; box-shadow: 0 12px 32px rgba(0, 0, 0, .3); }
+.toast span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast .mini { flex: none; border-color: transparent; background: var(--bg); color: var(--ink); }
+
+/* Acceso */
+.login { max-width: 360px; margin: 7vh auto 0; align-items: stretch; gap: 16px; }
+.login .mark { align-self: center; padding: 18px 26px 14px; border-radius: 24px; background: #ffffff; border: 1px solid var(--line); }
+.login .mark img { display: block; width: 148px; height: auto; }
+.login h1 { align-self: center; font-family: var(--serif); font-size: 42px; line-height: 1; font-weight: 500; letter-spacing: -.015em; color: var(--ink); }
+.login .lab { align-self: center; margin-top: -8px; }
+.login .f input { min-height: 48px; border-radius: 14px; background: var(--paper); }
+.login .btn { width: 100%; min-height: 50px; }
+.foot { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 8px 4px 0; }
+.foot button { min-height: 44px; border: 0; background: none; color: var(--muted); font-size: 13px; text-decoration: underline; padding: 0; }
+.editor { border-radius: 24px 24px 0 0; }
+.f input, .f select, .f textarea { min-height: 44px; }
 </style>
 </head>
 <body>
 
-<div class="wrap" id="loginView" hidden>
+<div class="app" id="loginView" hidden>
   <div class="login">
-    <span class="label">Despacho</span>
-    <h1>Hola, <em>Sergio</em></h1>
-    <p class="muted">Entra con tu correo y tu contraseña. La primera vez, pulsa «Crear acceso», confirma el correo que te llega y vuelve aquí.</p>
+    <div class="mark"><img src="logo-color.png" alt="Centro Nacional de Golf · Federación Española de Golf" width="640" height="801"></div>
+    <h1>Despacho</h1>
+    <span class="lab">Dirección Deportiva</span>
     <div class="f"><label for="lgEmail">Correo</label><input id="lgEmail" type="email" autocomplete="username" value="sergio.vela@cngolf.es"></div>
     <div class="f"><label for="lgPass">Contraseña</label><input id="lgPass" type="password" autocomplete="current-password" minlength="8"></div>
-    <div class="acts"><button class="btn go" id="lgIn">Entrar</button><button class="btn" id="lgUp">Crear acceso</button></div>
+    <button class="btn go" id="lgIn">Entrar</button>
     <p class="status" id="lgStatus" aria-live="polite"></p>
   </div>
 </div>
 
-<div class="wrap" id="appView" hidden>
-  <header class="card">
-    <div class="toprow">
-      <span id="dateLine">Despacho</span>
-      <div class="tabs" role="tablist" aria-label="Ámbito">
-        <button role="tab" id="tabCng" aria-selected="true" aria-controls="cng">CNG</button>
-        <button role="tab" id="tabPer" aria-selected="false" aria-controls="per">Personal</button>
-      </div>
+<div class="app" id="appView" hidden>
+  <header class="top">
+    <div class="who">
+      <span class="crest" role="img" aria-label="Centro Nacional de Golf"></span>
+      <div class="hi"><h1 id="greet">Despacho</h1><span class="live"><i id="liveDot"></i><span class="lab" id="dateLine"></span></span></div>
     </div>
-    <h1 id="greet">Hola, Sergio</h1>
-    <nav class="score" id="score" aria-label="Tu día en cifras"></nav>
+    <div class="seg" role="tablist" aria-label="Ámbito">
+      <button role="tab" id="tabCng" aria-selected="true" aria-controls="cng"><span>CNG</span></button>
+      <button role="tab" id="tabPer" aria-selected="false" aria-controls="per"><span>Personal</span></button>
+    </div>
   </header>
-
-  <!-- V4 (14/11/2026 · Sr. Vela): cinco bloques — AHORA (parte, a tu firma) · LO TUYO (tareas, delegado, hablar, libreta)
-       · EL CENTRO (día, negocio, turnos, operación, próximos días) · EQUIPO (tarjeta propia) · SEGUIMIENTO (radar, cierres, hecho). -->
-  <nav class="jumps" aria-label="Ir a">
-    <a href="#h-firma">Firma <i id="jFirma" hidden></i></a><a href="#h-tuyo">Lo tuyo <i id="jDel" hidden></i></a><a href="#h-hoy">El centro</a><a href="#h-eq">Equipo <i id="jEq" hidden></i></a><a href="#h-lib">Libreta <i id="jLib" hidden></i></a><a href="#h-radar">Radar</a>
-  </nav>
-  <p class="fresh" id="fresh" aria-live="polite"></p>
   <div class="banner" id="banner" hidden></div>
-
-  <div class="soltar">
-    <label class="label" for="suelta">Suelta lo que tengas en la cabeza</label>
-    <textarea id="suelta" placeholder="Escribe o dicta…"></textarea>
-    <div class="row"><div class="acts"><button class="mic" id="btnMic" aria-pressed="false" aria-label="Dictar" hidden>🎙</button><button class="btn go" id="btnSoltar">Soltar</button></div></div>
-    <p class="status" id="soltarStatus" aria-live="polite"></p>
-  </div>
 
   <div id="cng" role="tabpanel" aria-labelledby="tabCng" class="panel">
 
-    <div class="block">
-      <div class="eyebrow">Ahora</div>
-      <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El parte llega a las 08:10 y se renueva cada hora cuando hay novedades (el último siempre es el vigente).</p></div>
+    <!-- INICIO · todo el club en casillas; cada una abre su módulo -->
+    <section class="tab" id="pInicio" aria-label="Inicio">
+      <div class="bento" id="tablero">
+        <button type="button" class="tile" id="tDia" data-go="pCentro:dHoy"></button>
+        <div class="tile cut" id="tParte">
+          <div class="thead"><span class="lab" id="parteLab">Parte</span><span class="lab novn" id="parteNov"></span></div>
+          <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El parte llega por la mañana y se renueva varias veces al día.</p></div>
+          <button type="button" class="mas" id="parteMas" aria-expanded="false" hidden></button>
+        </div>
+        <button type="button" class="tile" id="tTorneo" data-go="pCentro:dOp" hidden></button>
+        <div class="r2">
+          <button type="button" class="tile" id="tTuyo" data-go="pTuyo"></button>
+          <button type="button" class="tile" id="tCli" data-go="pClientes"></button>
+        </div>
+        <div class="r3">
+          <button type="button" class="tile" id="tCampo" data-go="pCentro:dOp"></button>
+          <button type="button" class="tile" id="tJug" data-go="pCentro:neg"></button>
+          <button type="button" class="tile" id="tFac" data-go="pCentro:neg"></button>
+        </div>
+        <div class="r2">
+          <button type="button" class="tile" id="tBuzon" data-go="pClientes:dEq"></button>
+          <button type="button" class="tile" id="tTurnos" data-go="pCentro:dTurnos"></button>
+        </div>
+        <button type="button" class="tile" id="tViene" data-go="pCentro:dViene"></button>
+      </div>
+    </section>
+
+    <!-- LO TUYO -->
+    <section class="tab" id="pTuyo" aria-label="Lo tuyo" hidden>
       <section aria-labelledby="h-firma">
-        <div class="shead"><h2 id="h-firma">A tu firma</h2><span class="label" id="firmaN"></span></div>
+        <div class="shead"><h2 id="h-firma">A tu firma</h2><span class="lab" id="firmaN"></span></div>
         <div id="firma"></div>
       </section>
-    </div>
-
-    <div class="block" id="h-tuyo">
-      <div class="eyebrow">Lo tuyo</div>
       <details class="neg" id="dTareas" open>
-        <summary><div class="sum"><span class="t">Tus tareas</span><span class="s" id="tareasS"></span><span class="chev">▾</span></div></summary>
+        <summary><div class="sum"><span class="t">Tus tareas</span><span class="s" id="tareasS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
         <ul class="fl" id="tareas"></ul>
       </details>
       <details class="neg" id="dDel" open>
-        <summary><div class="sum"><span class="t" id="h-del">Delegado y en espera</span><span class="s" id="delN"></span><span class="chev">▾</span></div></summary>
+        <summary><div class="sum"><span class="t" id="h-del">Delegado y en espera</span><span class="s" id="delN"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
         <div id="delegado"></div>
       </details>
       <details class="neg" id="dHablar">
-        <summary><div class="sum"><span class="t">Para hablar con</span><span class="s" id="hablarS"></span><span class="chev">▾</span></div></summary>
+        <summary><div class="sum"><span class="t">Para hablar con</span><span class="s" id="hablarS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
         <ul class="fl" id="hablar"></ul>
       </details>
       <details class="neg" id="dLib">
-        <summary><div class="sum"><span class="t" id="h-lib">Libreta</span><span class="s" id="libS"></span><span class="chev">▾</span></div></summary>
+        <summary><div class="sum"><span class="t" id="h-lib">Libreta</span><span class="s" id="libS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
         <div class="libwrap"><div id="libreta"></div><div id="temas"></div></div>
       </details>
-    </div>
-
-    <div class="block">
-      <div class="eyebrow">El centro</div>
-      <section aria-labelledby="h-hoy">
-        <div class="shead"><h2 id="h-hoy">Hoy</h2><span class="label" id="hoySub"></span></div>
-        <p class="tiempo" id="opTiempo"></p>
-        <div class="hoy">
-          <div class="tl" id="tl"></div>
-          <div class="tiles" id="tiles"></div>
+      <details class="neg" id="dCerrado">
+        <summary><div class="sum"><span class="t">Cerrado</span><span class="s" id="cerradoS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div class="folds">
+          <details class="fold"><summary><span id="cierreLine">Hoy</span><span class="label"></span></summary><ul class="fl" id="cierre"></ul></details>
+          <details class="fold" id="semanaFold" hidden><summary><span id="semanaLine">Tu semana</span><span class="label"></span></summary><ul class="fl" id="semana"></ul></details>
+          <details class="fold"><summary><span>Hecho · últimos 14 días</span><span class="label" id="nHecho"></span></summary><ul class="fl" id="hecho"></ul></details>
         </div>
-        <details class="neg" id="neg" hidden>
-          <summary><div class="sum"><span class="t" id="negT"></span><span class="s" id="negS"></span><span class="chev">▾</span></div></summary>
-          <div id="bizres" hidden></div>
-          <div id="biztot" hidden></div>
-        </details>
-        <details class="neg" id="dTurnos">
-          <summary><div class="sum"><span class="t" id="turnosT">Trabajan hoy</span><span class="s" id="turnosS"></span><span class="chev">▾</span></div></summary>
-          <div class="staff" id="turnos"></div>
-        </details>
-        <details class="neg" id="dOp">
-          <summary><div class="sum"><span class="t">Detalle de la operación</span><span class="s" id="opSub"></span><span class="chev">▾</span></div></summary>
-          <div id="operacion" class="opgrid"></div>
-        </details>
-        <details class="neg" id="dProx" hidden>
-          <summary><div class="sum"><span class="t">Próximos días</span><span class="s" id="proxS"></span><span class="chev">▾</span></div></summary>
-          <div id="agenda"></div>
-        </details>
-      </section>
-    </div>
-
-    <div class="block">
-      <div class="eyebrow">Equipo</div>
-      <details class="neg" id="dEq" open>
-        <summary><div class="sum"><span class="t" id="h-eq">Clientes esperando respuesta</span><span class="s" id="nEquipo"></span><span class="chev">▾</span></div></summary>
-        <div id="equipo" class="eqwrap"></div>
       </details>
-    </div>
+    </section>
 
-    <div class="block">
-      <div class="eyebrow">Seguimiento</div>
-      <details class="neg" id="dRadar">
-        <summary><div class="sum"><span class="t" id="h-radar">Radar</span><span class="s" id="radarS"></span><span class="chev">▾</span></div></summary>
+    <!-- CENTRO -->
+    <section class="tab" id="pCentro" aria-label="El centro" hidden>
+      <div class="tiles" id="tiles"></div>
+      <p class="tiempo" id="opTiempo"></p>
+      <details class="neg" id="dHoy" open>
+        <summary><div class="sum"><span class="t" id="h-hoy">Hoy</span><span class="s" id="hoySub"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div class="tl" id="tl"></div>
+      </details>
+      <details class="neg" id="neg" hidden>
+        <summary><div class="sum"><span class="t" id="negT"></span><span class="s" id="negS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div id="bizres" hidden></div>
+        <div id="biztot" hidden></div>
+        <div class="tend" id="tend" hidden></div>
+      </details>
+      <details class="neg" id="dTurnos">
+        <summary><div class="sum"><span class="t" id="turnosT">Trabajan hoy</span><span class="s" id="turnosS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div class="staff" id="turnos"></div>
+      </details>
+      <details class="neg" id="dInc">
+        <summary><div class="sum"><span class="t">Incidencias</span><span class="s" id="incS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <ul class="fl" id="incidencias"></ul>
+      </details>
+      <details class="neg" id="dOp">
+        <summary><div class="sum"><span class="t">Detalle de la operación</span><span class="s" id="opSub"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div id="operacion" class="opgrid"></div>
+      </details>
+      <details class="neg" id="dViene">
+        <summary><div class="sum"><span class="t">Lo que viene</span><span class="s" id="vieneS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div id="agenda"></div>
         <ul class="radar" id="radar"></ul>
       </details>
-      <div class="folds">
-        <details class="fold"><summary><span id="cierreLine">Hoy</span><span class="label"></span></summary><ul class="fl" id="cierre"></ul></details>
-        <details class="fold" id="semanaFold" hidden><summary><span id="semanaLine">Tu semana</span><span class="label"></span></summary><ul class="fl" id="semana"></ul></details>
-        <details class="fold"><summary><span>Hecho · últimos 14 días</span><span class="label" id="nHecho"></span></summary><ul class="fl" id="hecho"></ul></details>
-      </div>
-    </div>
+    </section>
+
+    <!-- CLIENTES -->
+    <section class="tab" id="pClientes" aria-label="Clientes" hidden>
+      <div class="pulse" id="cliPulse"></div>
+      <p class="fresh" id="fresh" aria-live="polite"></p>
+      <details class="neg" id="dRecl" open>
+        <summary><div class="sum"><span class="t">Reclamaciones</span><span class="s" id="reclS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div id="reclList"></div>
+      </details>
+      <details class="neg" id="dDin" open>
+        <summary><div class="sum"><span class="t">Dinero de cliente pendiente</span><span class="s" id="dinS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div id="dinList"></div>
+      </details>
+      <details class="neg" id="dEq" open>
+        <summary><div class="sum"><span class="t" id="h-eq">Esperando respuesta del equipo</span><span class="s" id="nEquipo"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div id="equipo" class="eqwrap"></div>
+      </details>
+    </section>
 
   </div>
 
   <div id="per" role="tabpanel" aria-labelledby="tabPer" class="panel" hidden>
-    <!-- V4 · vencimientos personales (seguros, pagos, coche…) de los próximos 30 días, con su recurrencia. -->
-    <section><div class="shead"><h2>Próximos 30 días</h2><span class="label" id="nPerVenc"></span></div><div class="venc" id="perVenc"></div></section>
-    <section><div class="shead"><h2>Pendiente</h2><span class="label" id="nPer"></span></div><ul class="fl" id="perList"></ul></section>
-    <section><div class="shead"><h2>Ideas</h2><span class="label" id="nPerIdeas"></span></div><ul class="fl" id="perIdeas"></ul></section>
+    <section><div class="shead"><h2>Próximos 30 días</h2><span class="lab" id="nPerVenc"></span></div><div class="venc" id="perVenc"></div></section>
+    <section><div class="shead"><h2>Pendiente</h2><span class="lab" id="nPer"></span></div><ul class="fl" id="perList"></ul></section>
+    <section><div class="shead"><h2>Ideas</h2><span class="lab" id="nPerIdeas"></span></div><ul class="fl" id="perIdeas"></ul></section>
     <details class="fold"><summary><span id="perCierre">Hoy</span><span class="label"></span></summary><ul class="fl" id="perCerradas"></ul></details>
     <details class="fold"><summary><span>Hecho · últimos 14 días</span><span class="label" id="nPerHecho"></span></summary><ul class="fl" id="perHecho"></ul></details>
   </div>
 
-  <p class="foot">Se alimenta de tu Libreta, del Informe Diario de Dirección, de las revisiones automáticas, de tu Gmail y de tu calendario. <button class="salir" id="btnSalir">Cerrar sesión</button></p>
+  <p class="foot"><button type="button" id="btnTema">Apariencia: Automática</button><button type="button" class="salir" id="btnSalir">Cerrar sesión</button></p>
 </div>
+
+<nav class="dock" id="dock" aria-label="Secciones" hidden>
+  <button type="button" data-tab="pInicio"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"></rect><rect x="13" y="4" width="7" height="7" rx="1.5"></rect><rect x="4" y="13" width="7" height="7" rx="1.5"></rect><rect x="13" y="13" width="7" height="7" rx="1.5"></rect></svg><span>Inicio</span></button>
+  <button type="button" data-tab="pTuyo"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2 2 3.5-3.5M12.5 7.5H20M4 16l2 2 3.5-3.5M12.5 16.5H20"></path></svg><span>Lo tuyo</span><i id="bTuyo" hidden></i></button>
+  <button type="button" class="orb" id="orb" aria-label="Soltar o dictar"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0013 0M12 18v3"></path></svg></button>
+  <button type="button" data-tab="pCentro"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V4l9 3.5L7 11"></path><path d="M4 20h10"></path></svg><span>Centro</span><i id="bCentro" hidden></i></button>
+  <button type="button" data-tab="pClientes"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3"></circle><path d="M3.5 19c.6-3 2.7-4.5 5.5-4.5s4.9 1.5 5.5 4.5"></path><path d="M15.5 6.5a3 3 0 010 5.6M17.5 14.8c1.7.6 2.7 2 3 4.2"></path></svg><span>Clientes</span><i id="bCli" hidden></i></button>
+</nav>
+
+<div class="overlay" id="soltarOverlay" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="sLab">
+    <div class="shd"><label id="sLab" for="suelta">Suelta lo que tengas en la cabeza</label><button type="button" class="iconbtn" id="sCerrar" aria-label="Cerrar"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+    <textarea id="suelta" placeholder="Escribe o dicta…"></textarea>
+    <p class="status" id="soltarStatus" aria-live="polite"></p>
+    <div class="srow">
+      <button type="button" class="chipbtn" id="chipInc" aria-pressed="false">Incidencia</button>
+      <div class="acts"><button type="button" class="mic" id="btnMic" aria-pressed="false" aria-label="Dictar" hidden><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3.5" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0013 0M12 18v3"></path></svg></button><button type="button" class="btn go" id="btnSoltar">Soltar</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
 
 <div class="overlay" id="overlay" hidden>
   <div class="editor" role="dialog" aria-labelledby="edTitle">
@@ -740,7 +1006,7 @@ details.opdet .op { box-shadow: none; }
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="vendor/supabase.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

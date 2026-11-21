@@ -9,6 +9,8 @@
 // reservadas en GolfManager a su nombre no son reuniones (una línea plegada, fuera de choques y cifras); el parte marca lo nuevo y dice
 // «sin cambios» cuando repite; asunto vacío del buzón con respaldo; aplazar (mañana · lunes · semana · fecha) y «esperando a» en el editor;
 // estado tranquilo cuando no hay nada suyo; Personal con vencimientos de 30 días.
+// V6 (21/11/2026 · Sr. Vela): tablero de inicio, cuatro pestañas con barra inferior y micrófono, escudo, novedades, modo torneo,
+// dato caducado, tendencia de 7 días, Clientes, incidencias dictadas, deshacer y último estado guardado. Lo nuevo va al final, en «V6».
 // V4.1 (15/11/2026 · Sr. Vela): de medianoche a la primera lectura del día, «Hoy», «Trabajan hoy» y la ocupación usan el bloque
 // «mañana» de la última lectura de GolfManager de ayer, etiquetado «de ayer HH:MM». Lo que no trae ese bloque (ventas de hoy,
 // ya dadas) sale «no disponible», nunca 0. El Informe Diario (campo, clientes) sigue esperando a la sincronización de la mañana.
@@ -24,8 +26,8 @@
   // V3.1 · los desplegables con id recuerdan cómo los dejaste (solo en este navegador).
   const openPref = {};
   document.querySelectorAll('details[id]').forEach((d) => {
-    try { const v = localStorage.getItem('dp.open.' + d.id); if (v === '1') { d.open = true; openPref[d.id] = true; } else if (v === '0') { d.open = false; openPref[d.id] = true; } } catch (e) {}
-    d.addEventListener('toggle', () => { if (d.dataset.auto) { delete d.dataset.auto; return; } try { localStorage.setItem('dp.open.' + d.id, d.open ? '1' : '0'); } catch (e) {} });
+    try { const v = localStorage.getItem('dp6.open.' + d.id); if (v === '1') { d.open = true; openPref[d.id] = true; } else if (v === '0') { d.open = false; openPref[d.id] = true; } } catch (e) {}
+    d.addEventListener('toggle', () => { if (d.dataset.auto) { delete d.dataset.auto; return; } try { localStorage.setItem('dp6.open.' + d.id, d.open ? '1' : '0'); } catch (e) {} });
   });
   // Abierto por defecto según el dato (p. ej. Equipo cuando hay clientes esperando), salvo que ya lo hayas dejado como quieres.
   function defaultOpen(id, val) { const d = document.getElementById(id); if (!d || openPref[id] || d.open === !!val) return; d.dataset.auto = '1'; d.open = !!val; }
@@ -41,6 +43,9 @@
   const CODIGOS = { P: 'propio', F: 'federativo', PO: 'pool', PR: 'privado', PB: 'privado benéfico', A: 'abierto', AB: 'abierto benéfico', B: 'benéfico' };
   const PED = { pedido: 'pedido', confirmado: 'confirmado', enviado: 'en camino', entregado: 'entregado', incidencia: 'incidencia' };
   const KIND = { tarea: 'Para hacer', seguimiento: 'Encargo', hablar: 'Hablar con', idea: 'Idea', vencimiento: 'Vencimiento', pedido: 'Pedido' };
+  const EMAIL = 'sergio.vela@cngolf.es';
+  // V6 · incidencia del día: un asunto marcado en `extra`; vive solo en Centro › Incidencias.
+  const isInc = (it) => !!(it && it.extra && it.extra.incidencia);
 
   // ---------- fechas ----------
   const pad = (n) => String(n).padStart(2, '0');
@@ -84,7 +89,7 @@
     const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) lgStatus(/confirm/i.test(error.message) ? 'Antes tienes que confirmar el correo que te enviamos al crear el acceso.' : 'No se pudo entrar: revisa el correo y la contraseña.', true);
   });
-  $('#lgUp').addEventListener('click', async () => {
+  ($('#lgUp') || document.createElement('button')).addEventListener('click', async () => {
     const email = $('#lgEmail').value.trim(), password = $('#lgPass').value;
     if (!email || password.length < 8) { lgStatus('La contraseña necesita al menos 8 caracteres.', true); return; }
     lgStatus('Creando acceso…');
@@ -97,7 +102,7 @@
   // ---------- cabecera y pestañas ----------
   function header() {
     const t = new Date();
-    $('#dateLine').textContent = DIAS[t.getDay()].replace(/^./, (c) => c.toUpperCase()) + ', ' + t.getDate() + ' de ' + MESES[t.getMonth()];
+    $('#dateLine').textContent = DIAS3[t.getDay()] + ' ' + t.getDate() + ' ' + MES3[t.getMonth()] + ' · ' + pad(t.getHours()) + ':' + pad(t.getMinutes());
     const h = t.getHours();
     $('#greet').innerHTML = (h < 13 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches') + ', Sergio';
   }
@@ -107,7 +112,7 @@
     $('#tabPer').setAttribute('aria-selected', String(state.view === 'personal'));
     $('#cng').hidden = state.view !== 'cng'; $('#per').hidden = state.view !== 'personal';
     // V4: la barra de saltos y la frescura del equipo son de la vista CNG.
-    const j = $('.jumps'); if (j) j.hidden = state.view !== 'cng'; const f = $('#fresh'); if (f) f.hidden = state.view !== 'cng';
+    const j = $('.jumps'); if (j) j.hidden = state.view !== 'cng'; const f = $('#fresh'); if (f) f.hidden = state.view !== 'cng'; applyTab();
   }
   $('#tabCng').addEventListener('click', () => { state.view = 'cng'; try { localStorage.setItem('dp.view', 'cng'); } catch (e) {} applyView(); });
   $('#tabPer').addEventListener('click', () => { state.view = 'personal'; try { localStorage.setItem('dp.view', 'personal'); } catch (e) {} applyView(); });
@@ -129,7 +134,7 @@
     return s;
   }
   function firmaList() {
-    return cng().filter((it) => open(it) && (it.tipo === 'tarea' || !it.tipo) && !blocker(it) && !snoozed(it))
+    return cng().filter((it) => open(it) && (it.tipo === 'tarea' || !it.tipo) && !blocker(it) && !snoozed(it) && !isInc(it))
       .filter((it) => it.prioridad === 'urgente' || it.prioridad === 'alta' || (daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) <= 1))
       .sort((a, b) => urgency(a) - urgency(b)).slice(0, 3);
   }
@@ -188,14 +193,14 @@
     const enc = it.extra && it.extra.encargo; const pasado = enc && enc.at ? localDay(enc.at) : localDay(it.created_at);
     const quien = it.persona || (enc && enc.nombre) || 'el equipo';
     const cuando = n === 0 ? 'vence hoy' : 'vencido ' + relDate(it.fecha_limite);
-    return '<article class="firma urg enc" data-id="' + esc(it.id) + '">' +
+    return '<article class="firma urg enc' + (state.openMore && state.openMore.has(it.id) ? ' open' : '') + '" data-id="' + esc(it.id) + '">' +
       '<div class="fhead"><span class="fnum">' + (i + 1) + '</span><h3>' + esc(it.titulo) + '</h3>' +
       '<p class="why">Encargo a <b>' + esc(quien) + '</b>' + (pasado ? ' desde el ' + esc(fmtShort(pasado)) : '') + ': ' + esc(cuando) + ' y sin respuesta del equipo.</p>' +
       '<div class="chips"><span class="chip crit">encargo ' + esc(cuando) + '</span><span class="chip">' + esc(quien) + '</span></div></div>' +
       (it.novedad ? '<p class="nov"><b>Último</b>' + esc(it.novedad) + '</p>' : '') +
-      (pr ? '<p class="pend">Recordatorio pedido a las ' + hhmm(pr.at) + ': estará en tus borradores de Gmail en unos segundos.</p>' : '') +
+      (pr ? '<p class="pend">Recordatorio pedido a las ' + hhmm(pr.at) + ': estará en tus borradores de Gmail en breve.</p>' : '') +
       '<div class="acts">' + (pr ? '<button class="btn go" data-action="done">Hecho</button>' : '<button class="btn go" data-action="nudge">Recordar</button><button class="btn" data-action="done">Hecho</button>') +
-      '<button class="btn ghost" data-action="more">Más ▾</button></div>' +
+      '<button class="btn ghost" data-action="more">' + (state.openMore && state.openMore.has(it.id) ? 'Menos' : 'Más') + '</button></div>' +
       '<div class="more">' + (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
       '<button class="mini" data-action="later">Aplazar</button><button class="mini" data-action="edit">Editar</button></div></article>';
   }
@@ -206,14 +211,14 @@
     $('#firma').innerHTML = (list.length ? list.map((it, i) => {
       const n = daysUntil(it.fecha_limite); const urg = it.prioridad === 'urgente' || (n !== null && n <= 0);
       const pr = pendingRequest(it);
-      return '<article class="firma' + (urg ? ' urg' : '') + '" data-id="' + esc(it.id) + '">' +
+      return '<article class="firma' + (urg ? ' urg' : '') + (state.openMore && state.openMore.has(it.id) ? ' open' : '') + '" data-id="' + esc(it.id) + '">' +
         '<div class="fhead"><span class="fnum">' + (i + 1) + '</span><h3>' + esc(it.titulo) + '</h3>' +
         (it.detalle ? '<p class="why">' + esc(it.detalle) + '</p>' : '') + '<div class="chips">' + chipsFor(it) + '</div></div>' +
         (it.novedad ? '<p class="nov"><b>Novedad</b>' + esc(it.novedad) + '</p>' : '') +
         (it.recomendacion ? '<p class="reco"><b>Recomiendo</b>' + esc(it.recomendacion) + '</p>' : '') +
-        (pr ? '<p class="pend">' + (pr.tipo === 'reenvio' ? 'Reenvío a ' + esc(pr.para_nombre || pr.para || 'info@') + ' pedido a las ' : 'Borrador pedido a las ') + hhmm(pr.at) + ': estará en tus borradores de Gmail en unos segundos.</p>' : '') +
+        (pr ? '<p class="pend">' + (pr.tipo === 'reenvio' ? 'Reenvío a ' + esc(pr.para_nombre || pr.para || 'info@') + ' pedido a las ' : 'Borrador pedido a las ') + hhmm(pr.at) + ': estará en tus borradores de Gmail en breve.</p>' : '') +
         // V3: dos acciones a la vista (Hecho y Más); el resto se despliega. P108: nada se envía solo.
-        '<div class="acts"><button class="btn go" data-action="done">Hecho</button><button class="btn ghost" data-action="more">Más ▾</button></div>' +
+        '<div class="acts"><button class="btn go" data-action="done">Hecho</button><button class="btn ghost" data-action="more">' + (state.openMore && state.openMore.has(it.id) ? 'Menos' : 'Más') + '</button></div>' +
         '<div class="more">' + (pr ? '' : '<button class="mini" data-action="mail">Pedir borrador</button>' + (it.enlace ? '<button class="mini" data-action="fwd">Pasar al equipo</button>' : '')) +
         (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Abrir hilo</a>' : '') +
         '<button class="mini" data-action="later">Aplazar</button><button class="mini" data-action="edit">Editar</button></div></article>';
@@ -262,7 +267,7 @@
   }
   // V3 · «Hoy» en una tarjeta: línea del día (todos los eventos de hoy, también los pasados, tachados), baldosas y turnos.
   // Los días siguientes van debajo, compactos. Recordatorios «⏰» (P108) se enseñan como aviso, no como reunión.
-  function evKind(e) { return isTorneo(e) ? { cls: 'tor', txt: 'torneo' } : isRecordatorio(e) ? { cls: 'rec', txt: '⏰ aviso' } : e.todo_el_dia ? { cls: 'dia', txt: 'todo el día' } : { cls: '', txt: 'reunión' }; }
+  function evKind(e) { return isTorneo(e) ? { cls: 'tor', txt: 'torneo' } : isRecordatorio(e) ? { cls: 'rec', txt: 'aviso' } : e.todo_el_dia ? { cls: 'dia', txt: 'todo el día' } : { cls: '', txt: 'reunión' }; }
   function evName(e) {
     if (isTorneo(e)) { const tn = torneoName(e); return (tn.codigo ? tn.codigo + ' · ' : '') + tn.nombre; }
     if (isRecordatorio(e)) return String(e.titulo).replace(/^⏰\s*/, '');
@@ -318,9 +323,10 @@
     }).join('') + '</div>' : '';
   }
   function renderDelegado() {
-    const list = cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido')).sort((a, b) => urgency(a) - urgency(b));
+    const enF = new Set(vencidosEnc().map((x) => x.id));
+    const list = cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido') && !enF.has(it.id)).sort((a, b) => urgency(a) - urgency(b));
     const venc = list.filter((it) => it.tipo !== 'pedido' && daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) <= 0).length; const ped = list.filter((it) => it.tipo === 'pedido').length;
-    $('#delN').textContent = list.length ? [(list.length - ped) + (list.length - ped === 1 ? ' encargo' : ' encargos'), venc ? venc + (venc === 1 ? ' vencido' : ' vencidos') : '', ped ? ped + (ped === 1 ? ' pedido' : ' pedidos') : ''].filter(Boolean).join(' · ') : 'no esperas nada de nadie';
+    $('#delN').textContent = list.length ? [(list.length - ped) + (list.length - ped === 1 ? ' encargo' : ' encargos'), venc ? venc + (venc === 1 ? ' vencido' : ' vencidos') : '', ped ? ped + (ped === 1 ? ' pedido' : ' pedidos') : '', enF.size ? enF.size + ' más en «A tu firma»' : ''].filter(Boolean).join(' · ') : enF.size ? plural(enF.size, 'encargo vencido', 'encargos vencidos') + ', en «A tu firma»' : 'no esperas nada de nadie';
     defaultOpen('dDel', list.length > 0);
     $('#delegado').innerHTML = list.length ? list.map((it) => {
       const who = it.tipo === 'pedido' ? (it.proveedor || 'Proveedor') + (it.persona ? ' · ' + it.persona : '') : (it.persona || 'Sin asignar');
@@ -332,7 +338,7 @@
       return '<div class="del" data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como resuelto"></button>' +
         '<div><span class="who">' + esc(who) + '</span><p class="what">' + esc(it.titulo) + '</p>' +
         (it.novedad ? '<p class="note">' + esc(it.novedad) + '</p>' : it.detalle ? '<p class="note">' + esc(it.detalle) + '</p>' : '') +
-        (pr ? '<p class="pend">Recordatorio pedido: estará en tus borradores en menos de una hora.</p>' : '') + '</div>' +
+        (pr ? '<p class="pend">Recordatorio pedido: estará en tus borradores de Gmail en breve.</p>' : '') + '</div>' +
         '<span class="state' + (it.pedido_estado === 'entregado' ? ' done' : it.tipo !== 'pedido' && nd !== null && nd <= 0 ? ' late' : '') + '">' + esc(st) + '</span>' +
         '<div class="acts">' + (it.tipo !== 'pedido' && !pr ? '<button class="mini" data-action="nudge">Recordar</button>' : '') +
           (it.tracking ? '<a class="mini" href="' + esc(it.tracking) + '" target="_blank" rel="noopener">Seguimiento</a>' : '') +
@@ -417,7 +423,7 @@
   }
   function renderFolds() {
     const firmaIds = new Set(firmaList().map((x) => x.id));
-    const tareas = cng().filter((it) => open(it) && (it.tipo === 'tarea' || !it.tipo || it.tipo === 'vencimiento') && !firmaIds.has(it.id)).sort((a, b) => ((blocker(a) || snoozed(a)) ? 1 : 0) - ((blocker(b) || snoozed(b)) ? 1 : 0) || urgency(a) - urgency(b));
+    const tareas = cng().filter((it) => open(it) && (it.tipo === 'tarea' || !it.tipo || it.tipo === 'vencimiento') && !firmaIds.has(it.id) && !isInc(it)).sort((a, b) => ((blocker(a) || snoozed(a)) ? 1 : 0) - ((blocker(b) || snoozed(b)) ? 1 : 0) || urgency(a) - urgency(b));
     defaultOpen('dTareas', tareas.length > 0);
     // V3.1: «Tus tareas» va en el bloque Hoy, plegable, con resumen (cuántas, vencidas y para hoy).
     const venc = tareas.filter((it) => daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) < 0).length;
@@ -493,25 +499,11 @@
     el.innerHTML = (pend.length
       ? '<div class="eqsum">' + sum + '</div><ul class="eqlist">' + rows + '</ul>' + resHtml
       : '<div class="eqok">✓ El equipo está al día <small>ningún cliente esperando respuesta</small></div>' + resTxt) +
-      '<p class="eqmeta">Comprobado en Gmail ' + esc(cuando) + '. Se actualiza cada 30 minutos.</p>';
+      '<p class="eqmeta">Comprobado en Gmail ' + esc(cuando) + '.</p>';
   }
   // Tarjeta de juego (V2 22/10/2026): las cuatro cifras del día; cada casilla lleva a su sección.
-  function renderScore() {
-    const hoy = ymd(today()), fin = ymd(addDays(today(), 14)); const now = new Date();
-    const firma = firmaList().length + vencidosEnc().length;
-    const reun = state.events.filter((e) => e.dia === hoy && isReunion(e) && (!e.fin || new Date(e.fin) > now)).length;
-    const r = state.revision; const eq = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo.length : null;
-    const tor = new Set(state.events.filter((e) => isTorneo(e) && (e.dia_fin || e.dia) >= hoy && e.dia <= fin).map((e) => e.dia + e.titulo)).size;
-    const cell = (href, n, txt, hot) => '<a href="' + href + '"' + (hot ? ' class="hot"' : '') + '><b>' + (n === null ? '–' : n) + '</b><span>' + txt + '</span></a>';
-    $('#score').innerHTML = cell('#h-firma', firma, 'a tu firma', firma > 0) + cell('#h-hoy', reun, reun === 1 ? 'reunión hoy' : 'reuniones hoy') +
-      cell('#h-eq', eq, 'equipo pendiente', eq !== null && eq > 5) + cell('#h-radar', tor, tor === 1 ? 'torneo en 14 d' : 'torneos en 14 d');
-    // V3 · barra de saltos: el número solo cuando hay algo
-    const jump = (id, n, crit) => { const j = $(id); if (!j) return; j.hidden = !n; j.textContent = n || ''; j.classList.toggle('crit', !!crit); };
-    jump('#jFirma', firma, firma > 0);
-    jump('#jDel', cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido')).length, false);
-    jump('#jEq', eq, eq !== null && eq > 5);
-    jump('#jLib', cng().filter((it) => open(it) && it.tipo === 'idea').length, false);
-  }
+  // V6: las cifras de cabecera pasan al tablero de inicio (renderInicio, al final).
+  function renderScore() { renderInicio(); }
   // V2.1 (22/10/2026): frescura de los datos del equipo, cifras de negocio y cierre de semana.
   const eur = (n) => typeof n === 'number' && isFinite(n) ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €' : null;
   function renderFresh() {
@@ -635,7 +627,7 @@
         const a = toMin(p.desde), b = toMin(p.hasta);
         const dentro = nowPct !== null && a !== null && b !== null && a <= nowMin && nowMin < b;
         const rol = p.rol ? String(p.rol).toLowerCase().replace(/\s+/g, ' ').trim() : '';
-        const bar = a !== null && b !== null && b > a ? '<span class="bar" style="left:' + pct(a).toFixed(1) + '%;width:' + (pct(b) - pct(a)).toFixed(1) + '%"><small>' + esc(p.desde + '–' + p.hasta) + (rol && b - a >= 420 ? ' · ' + esc(rol) : '') + '</small></span>' : '<span class="bar nodata"><small>sin horario</small></span>';
+        const bar = a !== null && b !== null && b > a ? '<span class="bar" style="left:' + pct(a).toFixed(1) + '%;width:' + (pct(b) - pct(a)).toFixed(1) + '%"><small>' + esc(String(p.desde).replace(/^0/, '').replace(/:00$/, '') + '–' + String(p.hasta).replace(/^0/, '').replace(/:00$/, '')) + '</small></span>' : '<span class="bar nodata"><small>sin horario</small></span>';
         html += '<div class="row' + (dentro ? ' now' : '') + '"' + nowStyle + '><span class="n" title="' + esc(p.nombre + (rol ? ' · ' + rol : '')) + '">' + esc(label(p)) + '</span><span class="track">' + bar + '</span></div>';
       });
     });
@@ -662,8 +654,8 @@
     const rec = cl ? cl.reclamaciones_sin_respuesta : null;
     const jv = jugadoresVivo(); const infH = hoyS && hoyS.informe_hora ? ' · informe ' + hoyS.informe_hora : '';
     el.innerHTML = tile(sem ? '<span class="dot ' + semCls + '"></span>' + esc(sem.charAt(0) + sem.slice(1).toLowerCase()) : '—', 'campo' + (c && typeof c.puntos === 'number' ? ' · ' + c.puntos + '/100' : '') + (c && c.tendencia ? ' · ' + c.tendencia : ''), semCls) +
-      (jv ? tile(esc(String(jv.n)), 'jugadores hoy' + (jv.hora ? ' · GolfManager ' + jv.hora : '')) : tile(n.jugadores_hoy != null ? esc(String(n.jugadores_hoy)) : '—', 'jugadores hoy' + (n.jugadores_hoy != null ? infH : ''))) +
-      tile(n.ocupacion_hoy != null ? esc(n.ocupacion_hoy + ' %') : '—', 'ocupación del campo' + (n.ocupacion_hoy != null ? infH : '')) +
+      (jv ? tile(esc(String(jv.n)), 'jugadores' + (jv.hora ? ' · ' + jv.hora : '')) : tile(n.jugadores_hoy != null ? esc(String(n.jugadores_hoy)) : '—', 'jugadores' + (n.jugadores_hoy != null ? infH : ''))) +
+      tile(n.ocupacion_hoy != null ? esc(n.ocupacion_hoy + ' %') : '—', 'ocupación' + (n.ocupacion_hoy != null ? infH : '')) +
       tile(rec == null ? '—' : esc(String(rec)), rec === 1 ? 'reclamación sin respuesta' : 'reclamaciones sin respuesta', rec > 0 ? 'bad' : rec === 0 ? 'ok' : '');
   }
   // P82 (28/10/2026): «Operación de hoy» — campo, torneo del día, golf, clientes y tiempo. Todo copiado de su fuente
@@ -816,7 +808,7 @@
     html += '<li class="plain"><span class="muted" style="font-size:12px">Calculado ' + esc(hhmm(w.calculado)) + ' con tus asuntos, el buzón y el calendario.</span><span></span></li>';
     $('#semana').innerHTML = html;
   }
-  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTiles(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderPerVenc(); renderFolds(); renderHecho(); }
+  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTiles(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderPerVenc(); renderFolds(); renderHecho(); renderClientes(); renderIncidencias(); renderTendencia(); renderResumenes(); }
 
   // ---------- datos ----------
   function showBanner(msg, err) { const b = $('#banner'); b.textContent = msg; b.className = 'banner' + (err ? ' err' : ''); b.hidden = !msg; }
@@ -836,7 +828,7 @@
     else if (t === 'solicitudes') q = sb.from('solicitudes').select('*').or('estado.eq.pendiente,and(estado.eq.error,hecha_at.gt.' + new Date(Date.now() - 864e5).toISOString() + ')');
     else return;
     const { data, error } = await q;
-    if (error) { showBanner('No se pudieron cargar tus datos (' + error.message + '). Comprueba la conexión.', true); return; }
+    if (error) { state.loadErr = true; if (!state.snapAt && !state.loadedAt) showBanner('No se pudieron cargar tus datos (' + error.message + '). Comprueba la conexión.', true); return; }
     if (t === 'asuntos') state.items = data;
     else if (t === 'agenda') state.events = data;
     else if (t === 'prep') { const m = {}; data.forEach((p) => { m[p.id] = p; }); state.prep = m; }
@@ -849,7 +841,14 @@
   }
   const TABLES = ['asuntos', 'agenda', 'prep', 'briefings', 'revisiones', 'libreta', 'solicitudes', 'sync', 'negocio_vivo'];
   const SEMANA_DE = ['asuntos', 'agenda', 'revisiones'];
-  async function loadAll() { await Promise.all(TABLES.concat('semana').map(loadTable)); state.loaded = true; renderAll(); }
+  async function loadAll() {
+    state.loadErr = false;
+    await Promise.all(TABLES.concat('semana').map(loadTable));
+    // V6: si carga bien, se guarda el estado; si no hay red, se sigue viendo el último con su hora.
+    if (!state.loadErr) { state.snapAt = null; state.loadedAt = Date.now(); await loadHist(); saveSnap(); showBanner(''); }
+    else { if (!state.snapAt && state.loadedAt) state.snapAt = state.loadedAt; if (state.snapAt) showBanner(snapTxt(), true); }
+    state.loaded = true; renderAll();
+  }
   let channel = null, reloadTimer = {};
   function subscribe() {
     if (channel) return;
@@ -871,12 +870,19 @@
       fecha_limite: p.fecha_limite || null, persona: p.persona || null, recurrencia: p.recurrencia || null, detalle: p.detalle || null, tema: p.tema || null,
       relacionado_con: p.relacionado_con || null, libreta_id: p.libreta_id || null, origen: p.origen || 'app' };
   }
+  // V6: al marcar hecho sale un aviso con «Deshacer» durante unos segundos.
   async function markDone(it) {
     await patch(it, { estado: 'hecho', hecho_at: new Date().toISOString() });
+    if (it.estado !== 'hecho') return;
+    let nextId = null;
     if (it.tipo === 'vencimiento' && it.recurrencia && it.fecha_limite) {
       const next = addRecurrence(it.fecha_limite, it.recurrencia);
-      if (next) await sb.from('asuntos').insert(newItem({ titulo: it.titulo, tipo: 'vencimiento', ambito: it.ambito, prioridad: it.prioridad, fecha_limite: next, recurrencia: it.recurrencia, detalle: it.detalle, origen: 'recurrencia' }));
+      if (next) { const { data } = await sb.from('asuntos').insert(newItem({ titulo: it.titulo, tipo: 'vencimiento', ambito: it.ambito, prioridad: it.prioridad, fecha_limite: next, recurrencia: it.recurrencia, detalle: it.detalle, origen: 'recurrencia' })).select('id').single(); nextId = data && data.id ? data.id : null; }
     }
+    toast('Hecho: ' + String(it.titulo || '').slice(0, 70), async () => {
+      if (nextId) { await sb.from('asuntos').delete().eq('id', nextId); state.items = state.items.filter((x) => x.id !== nextId); }
+      await patch(it, { estado: 'pendiente', hecho_at: null });
+    });
   }
 
   // ---------- acciones ----------
@@ -885,7 +891,7 @@
     const host = btn.closest('[data-id]'); if (!host) return;
     const it = state.items.find((x) => x.id === host.dataset.id); if (!it) return;
     const a = btn.dataset.action;
-    if (a === 'more') { host.classList.toggle('open'); btn.textContent = host.classList.contains('open') ? 'Menos ▴' : 'Más ▾'; return; }
+    if (a === 'more') { state.openMore = state.openMore || new Set(); const o = host.classList.toggle('open'); if (o) state.openMore.add(it.id); else state.openMore.delete(it.id); btn.textContent = o ? 'Menos' : 'Más'; return; }
     if (a === 'totask') { patch(it, { tipo: 'tarea', prioridad: it.prioridad || 'normal', tema: null }); return; }
     if (a === 'done') markDone(it);
     else if (a === 'reopen') patch(it, { estado: 'pendiente', hecho_at: null });
@@ -946,6 +952,20 @@
   $('#btnSoltar').addEventListener('click', async () => {
     const texto = $('#suelta').value.trim(); if (!texto || state.busy) return;
     stopMic();
+    // V6 · incidencia del día: con el botón «Incidencia» marcado, o si empiezas diciendo «incidencia…», se apunta directamente
+    // en Centro › Incidencias (no pasa por la Libreta, así no se duplica como tarea).
+    const incOn = $('#chipInc').getAttribute('aria-pressed') === 'true'; const incRe = /^\s*incidencia\b[\s:,.;-]*/i;
+    if (incOn || incRe.test(texto)) {
+      const titulo = texto.replace(incRe, '').trim().replace(/^./, (c) => c.toUpperCase()).slice(0, 160);
+      if (!titulo) { sStatus('Di o escribe qué ha pasado.', true); return; }
+      state.busy = true; $('#btnSoltar').disabled = true; sStatus('Guardando…');
+      const doc = newItem({ titulo, tipo: 'tarea', ambito: 'cng', prioridad: 'alta', origen: 'app' }); doc.extra = { incidencia: true };
+      const { error: e2 } = await sb.from('asuntos').insert(doc);
+      state.busy = false; $('#btnSoltar').disabled = false;
+      if (e2) { sStatus('No se pudo guardar (' + e2.message + '). El texto sigue en la caja.', true); return; }
+      $('#suelta').value = ''; try { localStorage.removeItem('dp.suelta'); } catch (e) {} $('#chipInc').setAttribute('aria-pressed', 'false');
+      sStatus('Incidencia apuntada.'); await loadTable('asuntos'); renderAll(); setTimeout(() => { sStatus(''); closeSoltar(); }, 1100); return;
+    }
     state.busy = true; $('#btnSoltar').disabled = true; sStatus('Guardando…');
     const { data: entry, error } = await sb.from('libreta').insert({ texto, estado: 'sin_ordenar', origen: 'app' }).select('*').single();
     if (error) { sStatus('No se pudo guardar (' + error.message + '). El texto sigue en la caja.', true); state.busy = false; $('#btnSoltar').disabled = false; return; }
@@ -954,7 +974,7 @@
     const n = await ordenarAhora(entry);
     if (CONFIG.ordenarUrl) sStatus(n ? (n === 1 ? 'Ordenado: 1 elemento.' : 'Ordenado: ' + n + ' elementos.') : 'Guardado. No he podido ordenarlo ahora; lo hago en unos minutos.');
     state.busy = false; $('#btnSoltar').disabled = false;
-    await loadTable('libreta'); await loadTable('asuntos'); renderAll();
+    await loadTable('libreta'); await loadTable('asuntos'); renderAll(); setTimeout(() => { sStatus(''); closeSoltar(); }, 1400);
   });
 
   // ---------- dictado (si Safari lo permite; si no, el micrófono del teclado) ----------
@@ -968,7 +988,7 @@
     rec.lang = 'es-ES'; rec.interimResults = true; rec.continuous = true;
     recBase = $('#suelta').value ? $('#suelta').value.replace(/\s*$/, ' ') : '';
     rec.onresult = (e) => { let t = ''; for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript; $('#suelta').value = recBase + t; };
-    rec.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { sStatus('El dictado no está permitido aquí: usa el micrófono del teclado.', true); $('#btnMic').hidden = true; } };
+    rec.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { sStatus('El dictado no está permitido aquí: usa el micrófono del teclado.', true); $('#btnMic').hidden = true; try { $('#suelta').focus(); } catch (e2) {} } };
     rec.onend = () => { rec = null; $('#btnMic').setAttribute('aria-pressed', 'false'); try { localStorage.setItem('dp.suelta', $('#suelta').value); } catch (e) {} };
     $('#btnMic').setAttribute('aria-pressed', 'true');
     try { rec.start(); } catch (e) { rec = null; $('#btnMic').setAttribute('aria-pressed', 'false'); }
@@ -1103,14 +1123,364 @@
     closeFwd(); await loadTable('solicitudes'); renderAll();
   });
 
+
+  // ================= V6 (21/11/2026 · Sr. Vela) =================
+  // Tablero de inicio en casillas, cuatro pestañas con barra inferior, color solo cuando algo pide atención, novedades desde la
+  // última visita, modo torneo, dato caducado a la vista, tendencia de 7 días, Clientes con su detalle cuando el informe lo envíe,
+  // incidencias dictadas, deshacer al marcar hecho y último estado guardado para abrir sin cobertura.
+  const svg = (d, s) => '<svg aria-hidden="true" width="' + (s || 20) + '" height="' + (s || 20) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+  const I_GO = '<path d="M9 6l6 6-6 6"></path>';
+  const lab = (t) => '<span class="lab">' + esc(t) + '</span>';
+  const sub = (t, cls) => '<span class="sub' + (cls ? ' ' + cls : '') + '">' + esc(t) + '</span>';
+  const big = (v, cls) => '<span class="big' + (cls ? ' ' + cls : '') + '">' + esc(v) + '</span>';
+  const plural = (n, uno, varios) => n + ' ' + (n === 1 ? uno : varios);
+  const minsAgo = (iso) => iso ? (Date.now() - new Date(iso).getTime()) / 60000 : null;
+  const deDia = () => { const h = new Date().getHours(); return h >= 8 && h < 22; };
+
+  // ---------- pestañas ----------
+  function applyTab() {
+    const cur = state.tab || 'pInicio';
+    ['pInicio', 'pTuyo', 'pCentro', 'pClientes'].forEach((t) => { const el = document.getElementById(t); if (el) el.hidden = t !== cur; });
+    document.querySelectorAll('#dock [data-tab]').forEach((b) => { const on = state.view === 'cng' && b.dataset.tab === cur; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  }
+  function setTab(t, target) {
+    state.tab = t;
+    if (state.view !== 'cng') { state.view = 'cng'; try { localStorage.setItem('dp.view', 'cng'); } catch (e) {} applyView(); }
+    applyTab();
+    const el = target && document.getElementById(target);
+    if (el && !el.hidden) { const d = el.closest('details'); if (d && !d.open) { d.dataset.auto = '1'; d.open = true; } requestAnimationFrame(() => el.scrollIntoView({ block: 'start' })); }
+    else window.scrollTo(0, 0);
+  }
+  document.addEventListener('click', (ev) => {
+    const g = ev.target.closest('[data-go]'); if (g) { const p = g.dataset.go.split(':'); setTab(p[0], p[1]); return; }
+    const b = ev.target.closest('#dock [data-tab]'); if (b) setTab(b.dataset.tab);
+  });
+  $('#tabCng').addEventListener('click', applyTab); $('#tabPer').addEventListener('click', applyTab);
+  $('#parteMas').addEventListener('click', () => { $('#tParte').classList.toggle('cut'); renderResumenes(); });
+
+  // ---------- novedades desde la última visita ----------
+  // Se compara cada casilla con cómo estaba la última vez que cerraste la app (o la dejaste más de 5 minutos). Las cifras que cambian
+  // en cada lectura (jugadores, facturado, turnos) no cuentan: siempre serían «novedad».
+  let novBase = null; const novNow = {};
+  try { novBase = JSON.parse(localStorage.getItem('dp6.novNext') || localStorage.getItem('dp6.nov') || 'null'); if (novBase) localStorage.setItem('dp6.nov', JSON.stringify(novBase)); } catch (e) {}
+  function setTile(id, html, o) {
+    const el = document.getElementById(id); if (!el) return; o = o || {};
+    el.innerHTML = html; el.hidden = !!o.hidden; el.classList.toggle('crit', !!o.crit); el.classList.toggle('stale', !!o.stale);
+    if (o.go) el.dataset.go = o.go;
+    let nov = false;
+    if (o.sig != null && !o.hidden) { novNow[id] = String(o.sig); nov = !!(state.loaded && !state.snapAt && novBase && novBase.sigs && novBase.sigs[id] != null && novBase.sigs[id] !== String(o.sig)); }
+    el.classList.toggle('nw', nov);
+  }
+  let hiddenAt = 0;
+  function guardarVisita() { if (state.loaded && !state.snapAt) { try { localStorage.setItem('dp6.novNext', JSON.stringify({ at: Date.now(), sigs: novNow })); } catch (e) {} } }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); guardarVisita(); return; }
+    if (hiddenAt && Date.now() - hiddenAt > 5 * 60000) { try { novBase = JSON.parse(localStorage.getItem('dp6.novNext') || 'null') || novBase; localStorage.setItem('dp6.nov', JSON.stringify(novBase)); } catch (e) {} }
+  });
+  window.addEventListener('pagehide', guardarVisita);
+
+  // ---------- dato caducado ----------
+  function gmStale() {
+    const vd = state.vivo && state.vivo.datos; if (!state.loaded) return null;
+    if (!vd || !vd.generado || vd.fecha !== ymd(today())) return 'sin lectura de GolfManager';
+    if (vd.deAyer) return null;
+    return deDia() && minsAgo(vd.generado) > 90 ? 'sin lectura desde ' + hhmm(vd.generado) : null;
+  }
+  function syncHoy() { const s = state.sync; return s && localDay(s.at) === ymd(today()) ? s.datos || {} : null; }
+  function informeStale() { if (!state.loaded || syncHoy()) return null; return new Date().getHours() * 60 + new Date().getMinutes() >= 9 * 60 + 30 ? 'sin informe de hoy' : 'a la espera del informe'; }
+  function buzonStale() { const r = state.revision; if (!state.loaded) return null; if (!r || !r.at) return 'sin revisión del buzón'; return deDia() && minsAgo(r.at) > 90 ? 'revisado ' + (localDay(r.at) === ymd(today()) ? '' : fmtShort(localDay(r.at)) + ' ') + hhmm(r.at) : null; }
+
+  // ---------- esfera del día ----------
+  function dialSvg(evs, cl, now) {
+    const W = 326, H = 66, r = 300, A = 30, cx = W / 2, cy = 318, h0 = 7, h1 = 21;
+    const ang = (h) => (-A + (h - h0) * (2 * A / (h1 - h0))) * Math.PI / 180;
+    const pt = (h, rr) => [cx + (rr || r) * Math.sin(ang(h)), cy - (rr || r) * Math.cos(ang(h))];
+    const f = (v) => v.toFixed(1); const P = (p) => f(p[0]) + ' ' + f(p[1]);
+    const hNow = now.getHours() + now.getMinutes() / 60; const n = Math.max(h0, Math.min(h1, hNow));
+    const hOf = (iso) => { const d = new Date(iso); return d.getHours() + d.getMinutes() / 60; };
+    let s = '<svg class="dial" role="img" aria-label="Tu día de 7 a 21 h" viewBox="0 0 ' + W + ' ' + H + '" fill="none">';
+    if (n < h1) s += '<path class="rest" d="M' + P(pt(n)) + ' A' + r + ' ' + r + ' 0 0 1 ' + P(pt(h1)) + '" stroke-width="2" stroke-linecap="round"></path>';
+    if (n > h0) s += '<path class="done" d="M' + P(pt(h0)) + ' A' + r + ' ' + r + ' 0 0 1 ' + P(pt(n)) + '" stroke-width="2.5" stroke-linecap="round"></path>';
+    for (let h = h0; h <= h1; h++) {
+      const b = (h - h0) % 2 === 1;
+      s += '<path class="tk" d="M' + P(pt(h, r - 6)) + ' L' + P(pt(h, r - (b ? 12 : 9))) + '" stroke-width="1" stroke-linecap="round" opacity="' + (b ? .9 : .45) + '"></path>';
+      if (h === 10 || h === 14 || h === 18) { const t = pt(h, r - 24); s += '<text x="' + f(t[0]) + '" y="' + f(t[1] + 4) + '" text-anchor="middle">' + h + '</text>'; }
+    }
+    evs.forEach((e) => {
+      const h = hOf(e.inicio); if (h < h0 || h > h1) return; const p = pt(h);
+      if (isRecordatorio(e)) { s += '<rect class="evr" x="' + f(p[0] - 4) + '" y="' + f(p[1] - 4) + '" width="8" height="8" rx="1.5" transform="rotate(45 ' + P(p) + ')" stroke-width="1.5"></rect>'; return; }
+      const past = e.fin && new Date(e.fin) <= now;
+      s += '<circle class="' + (past ? 'evp' : cl.has(e.id) ? 'evc' : 'evn') + '" cx="' + f(p[0]) + '" cy="' + f(p[1]) + '" r="' + (past ? 4 : 4.5) + '" stroke-width="1.5"></circle>';
+    });
+    if (hNow >= h0 && hNow <= h1) { const p = pt(n); s += '<circle class="halo" cx="' + f(p[0]) + '" cy="' + f(p[1]) + '" r="9"></circle><path class="now" d="M' + P(pt(n, r - 13)) + ' L' + P(pt(n, r + 11)) + '" stroke-width="2" stroke-linecap="round"></path>'; }
+    return s + '</svg>';
+  }
+  function enCuanto(d, now) { const m = Math.round((d - now) / 60000); if (m < 1) return 'ahora'; if (m < 60) return 'en ' + m + ' min'; const h = Math.floor(m / 60), r = m % 60; return 'en ' + h + ' h' + (r ? ' ' + r + ' min' : ''); }
+
+  // ---------- cálculos compartidos ----------
+  function tareasList() { const ids = new Set(firmaList().map((x) => x.id)); return cng().filter((it) => open(it) && (it.tipo === 'tarea' || !it.tipo || it.tipo === 'vencimiento') && !ids.has(it.id) && !isInc(it)); }
+  function encargosList() { return cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido')); }
+  function incidenciasList() { return cng().filter((it) => open(it) && isInc(it)).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))); }
+  const keyT = (x) => norm(x).replace(/^(po|pr|pb|ab|a|b|f|p) · /, '').replace(/[^a-z0-9]/g, '');
+  const igualT = (x, y) => { const a = keyT(x), b = keyT(y); return !!a && !!b && (a === b || a.includes(b) || b.includes(a)); };
+  function torneoHoy() {
+    const hoy = ymd(today()); const cal = state.events.filter((e) => isTorneo(e) && e.dia <= hoy && hoy <= (e.dia_fin || e.dia));
+    const vd = state.vivo && state.vivo.datos; const tg = vd && vd.fecha === hoy && vd.unidades && vd.unidades.torneos_gm; const gm = tg && Array.isArray(tg.hoy) ? tg.hoy : [];
+    const hs = syncHoy(); const inf = hs && Array.isArray(hs.torneo_hoy) ? hs.torneo_hoy : [];
+    const nombres = []; cal.map((e) => { const t = torneoName(e); return (t.codigo ? t.codigo + ' · ' : '') + t.nombre; }).concat(gm.map((g) => g.nombre)).forEach((x) => { if (x && !nombres.some((y) => igualT(x, y))) nombres.push(x); });
+    return nombres.map((n) => ({ nombre: n, gm: gm.find((x) => igualT(x.nombre, n)) || null, inf: inf.find((x) => igualT(x.nombre || '', n)) || null }));
+  }
+  function turnosAhora() {
+    const vd = state.vivo && state.vivo.datos; const t = vd && vd.fecha === ymd(today()) && vd.unidades && vd.unidades.turnos;
+    if (!t || t.version !== 'P81') return null;
+    const noche = new Date().getHours() >= 19; const blq = t[noche ? 'manana' : 'hoy'] || {};
+    const toMin = (s) => { const m = String(s || '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+    const now = new Date().getHours() * 60 + new Date().getMinutes(); let total = 0, dentro = 0, aus = 0;
+    Object.keys(blq).forEach((dep) => (Array.isArray(blq[dep]) ? blq[dep] : []).forEach((p) => { if (p.ausente) { aus++; return; } total++; const a = toMin(p.desde), b = toMin(p.hasta); if (a !== null && b !== null && a <= now && now < b) dentro++; }));
+    return { noche, total, dentro, aus };
+  }
+  function vieneTxt() {
+    const hoy = ymd(today()), fin = ymd(addDays(today(), 14));
+    const tor = new Set(state.events.filter((e) => isTorneo(e) && (e.dia_fin || e.dia) >= hoy && e.dia <= fin).map((e) => e.dia + e.titulo)).size;
+    let prox = '';
+    for (let i = 1; i < 10 && !prox; i++) { const ds = ymd(addDays(today(), i)); const ev = eventsOn(ds).filter((e) => !isReserva(e)).sort((a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio)); if (ev.length) prox = (i === 1 ? 'mañana' : fmtShort(ds)) + ' · ' + (isTorneo(ev[0]) ? torneoName(ev[0]).nombre : evName(ev[0])) + (ev.length > 1 ? ' +' + (ev.length - 1) : ''); }
+    const partes = [prox, tor ? plural(tor, 'torneo', 'torneos') + ' en 14 días' : ''].filter(Boolean);
+    return { txt: partes.length ? partes.join(' · ') : 'nada en los próximos días', tor, prox };
+  }
+
+  // ---------- Inicio: el tablero ----------
+  function renderInicio() {
+    const now = new Date(); const hoy = ymd(today()); const L = state.loaded;
+    const ld = $('#liveDot'); if (ld) ld.classList.toggle('on', !!(L && !state.snapAt && state.loadedAt && Date.now() - state.loadedAt < 12 * 60000));
+
+    // Tu día
+    const delDia = eventsOn(hoy).filter((e) => !isReserva(e)); const cl = clashes(delDia);
+    const conHora = delDia.filter((e) => !e.todo_el_dia && e.inicio && !isTorneo(e));
+    const reun = conHora.filter((e) => !isRecordatorio(e)).sort((a, b) => String(a.inicio).localeCompare(String(b.inicio)));
+    const cur = reun.find((e) => e.fin && new Date(e.inicio) <= now && now < new Date(e.fin));
+    const nx = reun.find((e) => new Date(e.inicio) > now);
+    const foco = cur || nx; let cab = 'Hoy', what = L ? (reun.length ? 'Sin más reuniones hoy' : 'Sin reuniones hoy') : 'Cargando la agenda…', chipH = '';
+    if (cur) { cab = 'Ahora · hasta las ' + hhmm(cur.fin); what = evName(cur); }
+    else if (nx) { cab = 'Siguiente · ' + enCuanto(new Date(nx.inicio), now); what = hhmm(nx.inicio) + ' · ' + evName(nx); }
+    if (foco && cl.has(foco.id)) { const otra = reun.find((e) => e.id !== foco.id && cl.has(e.id) && new Date(e.inicio) < new Date(foco.fin) && new Date(foco.inicio) < new Date(e.fin)); chipH = '<span class="chip crit">se pisa' + (otra ? ' con ' + hhmm(otra.inicio) : '') + '</span>'; }
+    else if (foco && foco.mi_respuesta === 'needsAction') chipH = '<span class="chip flag">sin responder</span>';
+    setTile('tDia', '<span class="dialw">' + dialSvg(conHora, cl, now) + '</span><span class="nx"><span>' + lab(cab) + '<span class="what">' + esc(what) + '</span></span>' + chipH + '</span>',
+      { sig: reun.map((e) => e.id + (e.inicio || '')).join('|') + '#' + cl.size });
+
+    // Parte
+    const b = state.briefing; const pl = $('#parteLab'); if (pl) pl.textContent = b && b.at ? 'Parte · ' + (localDay(b.at) === hoy ? '' : DIAS3[new Date(b.at).getDay()] + ' ') + hhmm(b.at) : 'Parte';
+
+    // Modo torneo: el día de torneo su casilla sube bajo el parte, a todo el ancho
+    const tors = torneoHoy(); const t0 = tors[0];
+    if (t0) {
+      const g = t0.gm, i = t0.inf; const datos = [];
+      if (g && g.salida) datos.push('salida ' + g.salida); if (i && i.bandera) datos.push('bandera ' + i.bandera);
+      if (i && typeof i.asuntos === 'number' && i.asuntos > 0) datos.push(plural(i.asuntos, 'asunto abierto', 'asuntos abiertos'));
+      if (g && g.espera) datos.push(g.espera + ' en espera');
+      const ins = g && typeof g.inscritos === 'number' ? g.inscritos : null; const pz = g && typeof g.plazas === 'number' && g.plazas > 0 ? g.plazas : null;
+      setTile('tTorneo', '<span class="trow"><span>' + lab('Torneo hoy' + (tors.length > 1 ? ' · ' + tors.length : '')) + '<span class="name">' + esc(t0.nombre) + '</span>' + sub(datos.length ? datos.join(' · ') : 'sin datos de inscritos todavía', 'wrap') + '</span>' +
+        (ins !== null ? '<span class="rowb">' + big(String(ins), 'm') + (pz ? sub('de ' + pz) : sub('inscritos')) + '</span>' : '') + '</span>' +
+        (ins !== null && pz ? '<span class="bar"><i style="width:' + Math.min(100, ins / pz * 100).toFixed(1) + '%"></i></span>' : ''), { sig: t0.nombre + '#' + ins });
+    } else setTile('tTorneo', '', { hidden: true });
+
+    // Lo tuyo
+    const firma = firmaList(), encV = vencidosEnc(), tareas = tareasList();
+    const nF = firma.length + encV.length; const venc = firma.filter((it) => { const n = daysUntil(it.fecha_limite); return n !== null && n < 0; }).length + encV.length;
+    const hoyN = firma.filter((it) => daysUntil(it.fecha_limite) === 0).length;
+    const aviso = venc ? plural(venc, 'vencido', 'vencidos') : hoyN ? (hoyN === 1 ? '1 vence hoy' : hoyN + ' vencen hoy') : '';
+    setTile('tTuyo', lab('Lo tuyo') + '<span class="rowb">' + big(String(nF), nF ? 'gold' : 'dim') + sub('a tu firma') + '</span>' +
+      '<span class="sub">' + (aviso ? '<b class="crit">' + esc(aviso) + '</b> · ' : '') + esc(plural(tareas.length, 'tarea', 'tareas')) + '</span>',
+      { crit: venc > 0, sig: firma.map((x) => x.id).join('|') + '#' + encV.length + '#' + tareas.length, go: nF ? 'pTuyo:h-firma' : 'pTuyo' });
+
+    // Clientes
+    const hs = syncHoy(); const c = hs && hs.clientes; const stI = informeStale();
+    const rec = c && typeof c.reclamaciones_sin_respuesta === 'number' ? c.reclamaciones_sin_respuesta : null; const din = c && c.dinero_pendiente != null ? c.dinero_pendiente : null;
+    setTile('tCli', lab('Clientes') + (rec === null ? big('—', 'dim') + sub(stI || 'sin dato de reclamaciones')
+      : '<span class="rowc">' + big(String(rec), rec > 0 ? 'crit' : 'ok') + '<span class="sub wrap strong">' + (rec === 1 ? 'reclamación sin respuesta' : 'reclamaciones sin respuesta') + '</span></span>' + (din !== null ? sub(din + ' con dinero pendiente') : '')),
+      { crit: rec > 0, stale: rec === null, sig: rec === null ? null : rec + '#' + din });
+
+    // Campo (con las incidencias abiertas del día)
+    const cp = hs && hs.campo; const sem = cp && cp.semaforo ? String(cp.semaforo) : null; const semC = sem ? (SEMCLS[sem.toLowerCase()] || '') : '';
+    const inc = incidenciasList();
+    setTile('tCampo', lab('Campo') + (sem ? '<span class="rowc"><span class="dot ' + semC + '"></span>' + big(sem.charAt(0) + sem.slice(1).toLowerCase(), 'm') + '</span>' + (inc.length ? sub(plural(inc.length, 'incidencia', 'incidencias'), 'crit') : sub((typeof cp.puntos === 'number' ? cp.puntos + '/100' : '') + (cp.tendencia ? ' · ' + cp.tendencia : '')))
+      : big('—', 'm dim') + (inc.length ? sub(plural(inc.length, 'incidencia', 'incidencias'), 'crit') : sub(stI || 'sin parte del campo'))),
+      { crit: semC === 'bad', stale: !sem, sig: (sem || '') + '#' + (cp && cp.puntos) + '#' + inc.length, go: inc.length ? 'pCentro:dInc' : 'pCentro:dOp' });
+
+    // Jugadores y facturado (GolfManager)
+    const stG = gmStale(); const vd = state.vivo && state.vivo.datos; const vu = vd && vd.fecha === hoy ? vd.unidades : null;
+    const jv = jugadoresVivo(); const nInf = hs && hs.negocio && hs.negocio.jugadores_hoy != null ? hs.negocio.jugadores_hoy : null;
+    const gk = vu && vu.hoy ? Object.keys(vu.hoy).find((a) => /golf|campo|green/i.test(a) && !/gourmet/i.test(a)) : null;
+    const dadas = gk && vu.hoy_hechas && vu.hoy_hechas[gk] && typeof vu.hoy_hechas[gk].reservas === 'number' ? vu.hoy_hechas[gk].reservas : null;
+    setTile('tJug', lab('Jugadores') + (jv ? big(String(jv.n), 'm') + sub(stG || (dadas !== null ? dadas + ' ya dadas' : 'GolfManager ' + (jv.hora || ''))) + (dadas !== null && jv.n > 0 ? '<span class="bar"><i style="width:' + Math.min(100, dadas / jv.n * 100).toFixed(1) + '%"></i></span>' : '')
+      : nInf !== null ? big(String(nInf), 'm') + sub('del informe' + (hs.informe_hora ? ' ' + hs.informe_hora : '')) : big('—', 'm dim') + sub(stG || 'no disponible')), { stale: !!stG || (!jv && nInf === null) });
+    const vh = vu ? vu.ventas_hoy : null; const fac = vh && vh.version === 'P86' && vh.fecha === hoy ? eur(vh.total) : null;
+    setTile('tFac', lab('Facturado') + (fac ? big(fac, 'm') + sub(stG || 'con IVA · ' + hhmm(vd.generado)) : big('—', 'm dim') + sub(stG || 'no disponible')), { stale: !!stG || !fac });
+
+    // Buzón del equipo
+    const r = state.revision; const pend = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : null; const stB = buzonStale();
+    const viejo = pend && pend.length ? Math.max.apply(null, pend.map((p) => typeof p.dias === 'number' ? p.dias : 0)) : 0;
+    setTile('tBuzon', lab('Buzón del equipo') + (pend === null ? big('—', 'm dim') + sub(stB || 'sin revisión todavía')
+      : '<span class="rowb">' + big(String(pend.length), 'm' + (pend.length ? '' : ' ok')) + sub(pend.length ? 'esperando' : 'al día') + '</span>' + sub(stB || (pend.length ? 'el más antiguo, ' + (viejo === 0 ? 'de hoy' : plural(viejo, 'día', 'días')) : 'ningún cliente esperando'), !stB && viejo >= 3 ? 'crit' : '')),
+      { crit: viejo >= 7, stale: !!stB, sig: pend === null ? null : pend.map((p) => p.enlace || p.asunto || '').sort().join('|') });
+
+    // Trabajan
+    const tu = turnosAhora();
+    setTile('tTurnos', lab(tu && tu.noche ? 'Trabajan mañana' : 'Trabajan ahora') + (tu ? '<span class="rowb">' + big(String(tu.noche ? tu.total : tu.dentro), 'm') + sub(tu.noche ? 'con turno' : 'de ' + tu.total + ' con turno') + '</span>' + sub(stG || (tu.aus ? plural(tu.aus, 'ausencia', 'ausencias') : 'sin ausencias'))
+      : big('—', 'm dim') + sub(stG || 'turnos no disponibles')), { stale: !!stG || !tu });
+
+    // Lo que viene
+    const v = vieneTxt();
+    setTile('tViene', lab('Lo que viene') + '<span class="go">' + sub(v.txt) + svg(I_GO, 16) + '</span>', { sig: v.tor + '#' + v.prox });
+
+    // Cuántas casillas han cambiado desde la última visita
+    const nNov = document.querySelectorAll('#tablero .tile.nw').length; const pn = $('#parteNov');
+    if (pn) pn.textContent = nNov && novBase && novBase.at ? plural(nNov, 'novedad', 'novedades') + ' desde ' + (localDay(new Date(novBase.at).toISOString()) === hoy ? '' : 'el ' + fmtShort(localDay(new Date(novBase.at).toISOString())) + ' ') + hhmm(new Date(novBase.at).toISOString()) : '';
+
+    // Barra inferior: contadores
+    const badge = (id, n, crit) => { const el = document.getElementById(id); if (!el) return; el.hidden = !n; el.textContent = n || ''; el.classList.toggle('crit', !!crit); };
+    badge('bTuyo', nF, venc > 0); badge('bCentro', inc.length, true); badge('bCli', (rec || 0) + (pend ? pend.length : 0), rec > 0 || viejo >= 3);
+  }
+
+  // ---------- Clientes ----------
+  // El informe envía hoy solo recuentos. Cuando envíe el detalle (clientes.reclamaciones y clientes.dinero: asunto, días, área, estado,
+  // importe, enlace) se lista aquí caso a caso; mientras tanto se dice el recuento y que el detalle no ha llegado. Nunca un dato inventado.
+  function casoRow(x, hotDias) {
+    const d = typeof x.dias === 'number' ? x.dias : null; const hot = d !== null && d >= hotDias;
+    const imp = typeof x.importe === 'number' ? eur(x.importe) : x.importe ? String(x.importe) : '';
+    const meta = [x.bandeja || x.area || x.unidad || '', imp].filter(Boolean).map(esc).join(' · ');
+    const inner = '<span class="age">' + (d === null ? '—' : d === 0 ? 'hoy' : d + ' d') + '</span><span class="ct"><b>' + esc(x.asunto || x.titulo || 'Sin asunto') + '</b><span>' + (x.estado ? '<em>' + esc(x.estado) + '</em>' + (meta ? ' · ' : '') : '') + meta + '</span></span>';
+    return x.enlace && /^https:\/\//i.test(x.enlace) ? '<a class="crow' + (hot ? ' hot' : '') + '" href="' + esc(x.enlace) + '" target="_blank" rel="noopener">' + inner + '<span class="go">' + svg(I_GO, 18) + '</span></a>'
+      : '<div class="crow' + (hot ? ' hot' : '') + '">' + inner + '<span></span></div>';
+  }
+  function renderClientes() {
+    const hs = syncHoy(); const c = hs && hs.clientes; const stI = informeStale();
+    const rec = c && typeof c.reclamaciones_sin_respuesta === 'number' ? c.reclamaciones_sin_respuesta : null; const din = c && c.dinero_pendiente != null ? c.dinero_pendiente : null;
+    const lr = c && Array.isArray(c.reclamaciones) ? c.reclamaciones : c && Array.isArray(c.reclamaciones_detalle) ? c.reclamaciones_detalle : null;
+    const ldn = c && Array.isArray(c.dinero) ? c.dinero : c && Array.isArray(c.dinero_detalle) ? c.dinero_detalle : null;
+    const r = state.revision; const pend = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : null; const res = r && Array.isArray(r.resueltos_equipo) ? r.resueltos_equipo : null;
+    const cel = (v, t, crit) => '<div><b' + (crit ? ' class="crit"' : '') + '>' + (v === null ? '—' : esc(String(v))) + '</b><span>' + esc(t) + '</span></div>';
+    $('#cliPulse').innerHTML = cel(rec, rec === 1 ? 'reclamación' : 'reclamaciones', rec > 0) + cel(din, 'con dinero pendiente') + cel(pend ? pend.length : null, 'esperando al equipo') + cel(res ? res.length : null, res && res.length === 1 ? 'resuelto hoy' : 'resueltos hoy');
+    const hora = hs && hs.informe_hora ? 'informe de las ' + hs.informe_hora : '';
+    $('#reclS').textContent = rec === null ? (stI || 'sin dato') : rec ? plural(rec, 'sin respuesta', 'sin respuesta') + (hora ? ' · ' + hora : '') : 'ninguna sin respuesta' + (hora ? ' · ' + hora : '');
+    $('#reclList').innerHTML = lr && lr.length ? '<div class="cbody">' + lr.slice().sort((a, b) => (b.dias || 0) - (a.dias || 0)).map((x) => casoRow(x, 1)).join('') + '</div>'
+      : rec === null ? '<p class="cnote">' + esc(L0(stI, 'El informe de hoy no trae el dato de reclamaciones.')) + '</p>'
+      : rec === 0 ? '<p class="cnote">Ninguna reclamación sin respuesta.</p>'
+      : '<p class="cnote"><b>' + esc(rec === 1 ? '1 reclamación sin respuesta.' : rec + ' reclamaciones sin respuesta.') + '</b> El informe todavía no envía el detalle de cada una.</p>';
+    $('#dinS').textContent = din === null ? (stI || 'sin dato') : din ? plural(Number(din) || din, 'cliente', 'clientes') + (c.dinero_tipos ? ' · ' + c.dinero_tipos : '') : 'ninguno pendiente';
+    $('#dinList').innerHTML = ldn && ldn.length ? '<div class="cbody">' + ldn.slice().sort((a, b) => (b.dias || 0) - (a.dias || 0)).map((x) => casoRow(x, 3)).join('') + '</div>'
+      : din === null ? '<p class="cnote">' + esc(L0(stI, 'El informe de hoy no trae el dato de dinero pendiente.')) + '</p>'
+      : '<p class="cnote">' + (Number(din) ? '<b>' + esc(plural(Number(din), 'cliente', 'clientes')) + ' con dinero pendiente.</b> ' + (c.dinero_tipos ? esc(c.dinero_tipos) + '. ' : '') + 'El informe todavía no envía el detalle de cada caso.' : 'Ningún cliente con dinero pendiente.') +
+        (c.devoluciones_7d ? '<br>Devoluciones en 7 días: ' + esc(c.devoluciones_7d) + '.' : '') + '</p>';
+    defaultOpen('dRecl', rec > 0); defaultOpen('dDin', Number(din) > 0);
+  }
+  function L0(stale, otro) { return stale ? stale.charAt(0).toUpperCase() + stale.slice(1) + '.' : otro; }
+
+  // ---------- Incidencias del día (las dictas tú) ----------
+  function renderIncidencias() {
+    const list = incidenciasList(); const hoy = ymd(today());
+    const cerradas = cng().filter((it) => isInc(it) && it.estado === 'hecho' && localDay(it.hecho_at) === hoy).length;
+    $('#incS').textContent = [list.length ? plural(list.length, 'abierta', 'abiertas') : 'ninguna abierta', cerradas ? plural(cerradas, 'resuelta hoy', 'resueltas hoy') : ''].filter(Boolean).join(' · ');
+    defaultOpen('dInc', list.length > 0);
+    $('#incidencias').innerHTML = list.length ? list.map((it) => { const d = localDay(it.created_at); return rowLi(it, d === hoy ? hhmm(it.created_at) : ago(it.created_at)); }).join('')
+      : '<li class="plain"><span class="muted">Sin incidencias abiertas.</span><span></span></li>';
+  }
+
+  // ---------- Tendencia de 7 días (lecturas guardadas de GolfManager) ----------
+  async function loadHist() {
+    if (state.histAt && Date.now() - state.histAt < 30 * 60000) return;
+    const desde = ymd(addDays(today(), -7)), hasta = ymd(today()); let rows = [];
+    for (let p = 0; p < 4; p++) {
+      const { data, error } = await sb.from('reservas_historico').select('fecha,unidad,reservas,generado').gte('fecha', desde).lte('fecha', hasta).order('generado', { ascending: false }).range(p * 1000, p * 1000 + 999);
+      if (error || !Array.isArray(data)) return; rows = rows.concat(data); if (data.length < 1000) break;
+    }
+    const last = {}; rows.forEach((x) => { const k = x.fecha + '|' + x.unidad; if (!last[k] || String(x.generado) > String(last[k].generado)) last[k] = x; });
+    state.hist = Object.keys(last).map((k) => last[k]); state.histAt = Date.now();
+  }
+  function renderTendencia() {
+    const el = $('#tend'); if (!el) return; const h = Array.isArray(state.hist) ? state.hist : [];
+    const golf = h.filter((x) => /golf|campo|green/i.test(x.unidad) && !/gourmet/i.test(x.unidad));
+    if (golf.length < 2) { el.hidden = true; return; }
+    const por = {}; golf.forEach((x) => { por[x.fecha] = x; }); const hoy = ymd(today()); const dias = []; for (let i = 7; i >= 0; i--) dias.push(ymd(addDays(today(), -i)));
+    const max = Math.max.apply(null, dias.map((d) => por[d] ? por[d].reservas || 0 : 0).concat(1));
+    el.hidden = false;
+    el.innerHTML = lab('Golf · últimos 7 días') + '<div class="bars">' + dias.map((d) => { const x = por[d]; const n = x ? x.reservas || 0 : null;
+      return '<div class="col' + (d === hoy ? ' hoy' : '') + '"><b>' + (n === null ? '—' : n) + '</b><i style="height:' + (n === null ? 0 : Math.max(3, n / max * 60)).toFixed(0) + 'px"></i><small>' + DIAS3[parseYmd(d).getDay()].slice(0, 1) + '</small></div>'; }).join('') + '</div>' +
+      '<p>Reservas de golf en la última lectura de cada día' + (por[hoy] ? '; hoy, a las ' + hhmm(por[hoy].generado) : '') + '.</p>';
+  }
+
+  // ---------- resúmenes de módulos ----------
+  function renderResumenes() {
+    // El tablero enseña la primera línea del parte; el resto se despliega sin salir de la casilla
+    const pm = $('#parteMas'); const tp = $('#tParte');
+    if (pm && tp) { const extra = $('#parte').querySelectorAll('p:not(.calm):not(.empty)').length - 1 + ($('#parte').querySelector('.since') ? 1 : 0); const cut = tp.classList.contains('cut');
+      pm.hidden = extra < 1; pm.textContent = cut ? 'Ver el parte completo' : 'Recoger el parte'; pm.setAttribute('aria-expanded', String(!cut)); }
+
+    const v = $('#vieneS'); if (v) v.textContent = vieneTxt().txt;
+    const c = $('#cerradoS'); if (c && $('#cierreLine')) c.textContent = $('#cierreLine').textContent.replace(/^Hoy: /, 'hoy ');
+  }
+
+  // ---------- hoja para soltar o dictar ----------
+  function openSoltar(dictar) { $('#soltarOverlay').hidden = false; if (dictar && SR && !rec && !$('#btnMic').hidden) $('#btnMic').click(); else setTimeout(() => { try { $('#suelta').focus(); } catch (e) {} }, 60); }
+  function closeSoltar() { stopMic(); $('#soltarOverlay').hidden = true; }
+  $('#orb').addEventListener('click', () => openSoltar(true));
+  $('#sCerrar').addEventListener('click', closeSoltar);
+  $('#soltarOverlay').addEventListener('click', (e) => { if (e.target === $('#soltarOverlay')) closeSoltar(); });
+  $('#chipInc').addEventListener('click', () => { const b = $('#chipInc'); b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('#soltarOverlay').hidden) closeSoltar(); });
+
+  // ---------- aviso con «Deshacer» ----------
+  let toastTimer = null;
+  function toast(msg, undo) {
+    const t = $('#toast'); t.innerHTML = '<span>' + esc(msg) + '</span>' + (undo ? '<button type="button" class="mini" id="toastUndo">Deshacer</button>' : '');
+    t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 6000);
+    if (undo) $('#toastUndo').addEventListener('click', async () => { t.hidden = true; clearTimeout(toastTimer); await undo(); });
+  }
+
+  // ---------- último estado guardado (abre al instante y sin cobertura) ----------
+  const SNAP = 'dp6.snap'; const SNAPK = ['items', 'events', 'prep', 'briefing', 'briefingPrev', 'revision', 'libreta', 'solicitudes', 'sync', 'vivoRaw', 'semana', 'hist'];
+  function saveSnap() { try { const o = { at: Date.now() }; SNAPK.forEach((k) => { o[k] = state[k]; }); localStorage.setItem(SNAP, JSON.stringify(o)); } catch (e) {} }
+  function loadSnap() { try { const s = JSON.parse(localStorage.getItem(SNAP) || 'null'); if (!s || !Array.isArray(s.items)) return false; SNAPK.forEach((k) => { if (s[k] !== undefined && s[k] !== null) state[k] = s[k]; }); state.snapAt = s.at; return true; } catch (e) { return false; } }
+  function storedUserOk() { try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^sb-.*-auth-token$/.test(k)) { const v = JSON.parse(localStorage.getItem(k)); const u = v && (v.user || (v.currentSession && v.currentSession.user)); if (u && u.email === EMAIL) return true; } } } catch (e) {} return false; }
+  function snapTxt() { const iso = new Date(state.snapAt).toISOString(); return 'Sin conexión: ves los datos de ' + (localDay(iso) === ymd(today()) ? 'las ' : 'el ' + fmtShort(localDay(iso)) + ', ') + hhmm(iso) + '.'; }
+  $('#btnSalir').addEventListener('click', () => { try { localStorage.removeItem(SNAP); localStorage.removeItem('dp6.nov'); localStorage.removeItem('dp6.novNext'); } catch (e) {} });
+
+  // ---------- apariencia: automática, noche o día ----------
+  const TEMAS = ['auto', 'dark', 'light']; const TEMAN = { auto: 'Automática', dark: 'Noche', light: 'Día' };
+  function temaActual() { try { const t = localStorage.getItem('dp6.theme'); return TEMAS.includes(t) ? t : 'auto'; } catch (e) { return 'auto'; } }
+  function applyTheme() {
+    const t = temaActual(); if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+    $('#btnTema').textContent = 'Apariencia: ' + TEMAN[t];
+    const dark = t === 'dark' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', dark ? '#0A1220' : '#F2F4F7');
+  }
+  $('#btnTema').addEventListener('click', () => { try { localStorage.setItem('dp6.theme', TEMAS[(TEMAS.indexOf(temaActual()) + 1) % 3]); } catch (e) {} applyTheme(); });
+  applyTheme();
+
+  // El reloj de la cabecera y la esfera avanzan cada minuto; los datos se recargan cada 5 minutos mientras la app está a la vista.
+  setInterval(() => { if (!document.hidden && !$('#appView').hidden) { header(); renderInicio(); } }, 60000);
+  setInterval(() => { if (!document.hidden && !$('#appView').hidden && navigator.onLine !== false) loadAll(); }, 5 * 60000);
+
   // ---------- arranque ----------
   async function showFor(session) {
-    const ok = session && session.user && session.user.email === 'sergio.vela@cngolf.es';
-    $('#loginView').hidden = !!ok; $('#appView').hidden = !ok;
+    let ok = !!(session && session.user && session.user.email === EMAIL);
+    // V6: sin red y con tu sesión guardada en este dispositivo, se abre con el último estado guardado.
+    const sinRed = !ok && !session && navigator.onLine === false && storedUserOk();
+    if (sinRed) ok = true;
+    $('#loginView').hidden = ok; $('#appView').hidden = !ok; $('#dock').hidden = !ok;
     if (session && !ok) lgStatus('Este acceso es solo para Sergio Vela.', true);
-    if (ok) { header(); renderAll(); await loadAll(); subscribe(); }
+    if (!ok) return;
+    if (!state.loaded && !state.snapAt) loadSnap();
+    header(); applyTab(); renderAll();
+    if (sinRed) { state.loaded = true; if (state.snapAt) showBanner(snapTxt(), true); else showBanner('Sin conexión y sin datos guardados todavía.', true); renderAll(); return; }
+    await loadAll(); subscribe();
   }
   sb.auth.onAuthStateChange((_ev, session) => { showFor(session); });
+  // V6: si este dispositivo recuerda tu sesión y hay un estado guardado, se pinta al instante mientras se comprueba la sesión
+  // (sin cobertura, comprobarla puede tardar; no hace falta esperar para ver lo último que cargaste).
+  if (storedUserOk() && loadSnap()) {
+    $('#loginView').hidden = true; $('#appView').hidden = false; $('#dock').hidden = false; header(); applyTab(); renderAll();
+    if (navigator.onLine === false) { state.loaded = true; showBanner(snapTxt(), true); renderAll(); }
+  }
   sb.auth.getSession().then(({ data }) => showFor(data.session));
   if ('serviceWorker' in navigator) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 })();
