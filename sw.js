@@ -1,6 +1,6 @@
 // Despacho V6 · service worker. Guarda la carcasa completa (también la librería de Supabase y las tipografías, que ahora van en la
 // propia carpeta) para que la app abra sin cobertura. Los datos vienen de Supabase; el último estado lo guarda la propia app.
-const CACHE = 'despacho-v26';
+const CACHE = 'despacho-v27';
 const SHELL = ["./", "./index.html", "./app.js", "./vendor/supabase.js", "./manifest.webmanifest", "./escudo.png", "./logo-color.png", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./fonts/ibm-plex-mono-latin-500-normal.woff2", "./fonts/newsreader-latin-400-normal.woff2", "./fonts/newsreader-latin-500-normal.woff2", "./fonts/schibsted-grotesk-latin-400-normal.woff2", "./fonts/schibsted-grotesk-latin-500-normal.woff2", "./fonts/schibsted-grotesk-latin-600-normal.woff2", "./fonts/schibsted-grotesk-latin-700-normal.woff2"];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
@@ -20,9 +20,12 @@ self.addEventListener('fetch', (e) => {
     fetch(e.request).then((r) => { clearTimeout(t); guardar(r); fin(r); }).catch(() => { clearTimeout(t); copia().then((r) => { fin(r || Response.error()); }); });
   }));
 });
-// Avisos: se activan en la fase 2, cuando exista el servidor de avisos.
+// Avisos al móvil (fase 2): los manda la función «despacho-avisar» de Supabase.
 self.addEventListener('push', (e) => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data && e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'Despacho', { body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', data: d.url || './' }));
+  e.waitUntil(self.registration.showNotification(d.title || 'Despacho', { body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.tag || undefined, data: d.url || './' }));
 });
-self.addEventListener('notificationclick', (e) => { e.notification.close(); e.waitUntil(self.clients.openWindow(e.notification.data || './')); });
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => { for (const c of cs) { if (c.url.indexOf(self.registration.scope) === 0 && 'focus' in c) return c.focus(); } return self.clients.openWindow(e.notification.data || './'); }));
+});

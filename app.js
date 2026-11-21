@@ -175,7 +175,7 @@
     const sinCambios = prev && !nuevas.length && state.briefingPrev.at;
     const cls = (l) => [cerrados.length && cerradoEn(l) ? 'done' : '', prev && nuevas.length && nuevas.length < lines.length && !prev.has(l) ? 'new' : ''].filter(Boolean).join(' ');
     el.innerHTML = lines.map((l) => { const c = cls(l); return '<p' + (c ? ' class="' + c + '"' : '') + '>' + esc(l) + '</p>'; }).join('') + despues + calmHtml() +
-      (at ? '<span class="when">Parte de ' + esc(at) + (sinCambios ? ' · sin cambios desde las ' + hhmm(state.briefingPrev.at) : nuevas.length && nuevas.length < lines.length ? ' · lo nuevo lleva un punto' : '') + (cerrados.length ? '; lo de arriba puede estar ya resuelto' : '') + '</span>' : '');
+      (at ? '<span class="when">Parte de ' + esc(at) + (sinCambios ? ' · sin cambios desde las ' + hhmm(state.briefingPrev.at) : nuevas.length && nuevas.length < lines.length ? ' · lo nuevo, con el número en azul' : '') + (cerrados.length ? '; lo de arriba puede estar ya resuelto' : '') + '</span>' : '');
   }
   // V4 · estado tranquilo: si no hay nada suyo (firma, tareas, encargos), una sola línea en vez de secciones vacías.
   function calmHtml() {
@@ -236,7 +236,7 @@
   const isReserva = (e) => /^SERGIO VELA TORRES\s*-/i.test(String(e.titulo || '')) || /\s-\s*Tee\s*\d+\s*$/i.test(String(e.titulo || ''));
   const isReunion = (e) => !e.todo_el_dia && !isTorneo(e) && !isRecordatorio(e) && !isReserva(e);
   function eventsOn(day) { return state.events.filter((e) => e.dia <= day && day <= (e.dia_fin || e.dia)); }
-  function torneoName(e) { const s = String(e.titulo || '').trim(); const m = s.match(/^(PO|PR|PB|AB|A|B|F|P)\s+(.+)$/); return m ? { codigo: m[1], nombre: m[2] } : { codigo: null, nombre: s }; }
+  function torneoName(e) { const s = String(e.titulo || '').trim(); const m = s.match(/^(PO|PR|PB|AB|A|B|F|P)\s+(.+)$/); return m ? { codigo: m[1], nombre: nice(m[2]) } : { codigo: null, nombre: nice(s) }; }
   function timeRange(e) {
     if (e.todo_el_dia) { const a = e.dia, b = e.dia_fin || e.dia; return a === b ? 'todo el día' : parseYmd(a).getDate() + '–' + parseYmd(b).getDate() + ' ' + MES3[parseYmd(b).getMonth()]; }
     return hhmm(e.inicio) + (e.fin ? '–' + hhmm(e.fin) : '');
@@ -478,9 +478,12 @@
     // V4: antigüedad a la vista (hoy · 1-2 d · 3 d o más) y después las bandejas.
     const ag = { hoy: 0, rec: 0, vie: 0 }; pend.forEach((p) => { const d = typeof p.dias === 'number' ? p.dias : null; if (d === null) return; if (d <= 0) ag.hoy++; else if (d < 3) ag.rec++; else ag.vie++; });
     const ages = [ag.vie ? '<span class="chip crit">' + ag.vie + ' de 3 d o más</span>' : '', ag.rec ? '<span class="chip flag">' + ag.rec + ' de 1-2 d</span>' : '', ag.hoy ? '<span class="chip">' + ag.hoy + ' de hoy</span>' : ''].join('');
-    const sum = ages + Object.keys(porB).sort((a, b) => porB[b] - porB[a]).map((k) => '<span class="chip plain">' + esc(k) + ' ' + porB[k] + '</span>').join('');
+    // V6.1: las pestañitas filtran la lista (por antigüedad o por bandeja); otra pulsación quita el filtro.
+    if (state.eqFilter && !pend.some(eqMatch)) state.eqFilter = null;
+    const sum = (ag.vie ? fchip('crit', 'e:vie', ag.vie + ' de 3 d o más') : '') + (ag.rec ? fchip('flag', 'e:rec', ag.rec + ' de 1-2 d') : '') + (ag.hoy ? fchip('', 'e:hoy', ag.hoy + ' de hoy') : '') + Object.keys(porB).sort((a, b) => porB[b] - porB[a]).map((k) => fchip('plain', 'b:' + k, k + ' ' + porB[k])).join('') + (state.eqFilter && state.eqFilter.slice(0, 2) === 'a:' ? fchip('plain', state.eqFilter, 'Área: ' + state.eqFilter.slice(2) + ' ' + pend.filter(eqMatch).length) : '');
     state.eqPend = pend;
     const rows = pend.map((p, i) => {
+      if (!eqMatch(p)) return '';
       const d = typeof p.dias === 'number' ? p.dias : null; const st = eqEstado(p);
       const pr = p.enlace ? eqPedido(p.enlace) : null;
       const pasar = !p.enlace ? '' : pr ? '<span class="eqfwd-ok">Reenvío a ' + esc(pr.para_nombre || pr.para || '') + ' pedido</span>'
@@ -490,14 +493,14 @@
       const extra = /pasada|cerrar/i.test(p.estado || '') ? '<span>fecha pasada: responder o cerrar</span>' : '';
       return '<li><span class="age' + (d >= 7 ? ' hot' : d >= 3 ? ' warm' : '') + '">' + age + '</span><span class="asu">' + link + '</span>' +
         (p.enlace ? '<span class="eqbtns"><a class="mini go" href="' + esc(p.enlace) + '" target="_blank" rel="noopener">Abrir</a>' + pasar + '</span>' : '<span></span>') +
-        '<span class="sub"><span class="st ' + st.cls + '">' + esc(st.txt) + '</span><span>' + esc(p.bandeja || '') + '</span>' + extra + '</span></li>';
+        '<span class="sub"><span class="st ' + st.cls + '">' + esc(st.txt) + '</span><span>' + esc([p.area, p.bandeja].filter(Boolean).filter((x, i, l) => l.indexOf(x) === i).join(' · ')) + '</span>' + extra + '</span></li>';
     }).join('');
     const resHtml = res.length ? '<details class="res"><summary>' + res.length + (res.length === 1 ? ' resuelto' : ' resueltos') + ' desde el informe</summary><ul>' +
       res.map((x) => '<li><span class="t">' + (x.enlace ? '<a href="' + esc(x.enlace) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(x.asunto || '') + '</a>' : esc(x.asunto || '')) + '</span><span class="r">' + esc(x.quien || '') + '</span></li>').join('') + '</ul></details>' : '';
     // V3: al día = una línea; los resueltos en texto corrido (quién y qué), sin desplegable.
     const resTxt = res.length ? '<p class="res"><b>' + res.length + (res.length === 1 ? ' resuelto' : ' resueltos') + '</b> desde el informe · ' + esc(res.slice(0, 4).map((x) => (x.quien && x.quien !== '—' ? String(x.quien).split(' ')[0] + ' (' + String(x.asunto || '').slice(0, 40) + ')' : String(x.asunto || '').slice(0, 40))).join(' · ')) + (res.length > 4 ? ' · y ' + (res.length - 4) + ' más' : '') + '</p>' : '';
     el.innerHTML = (pend.length
-      ? '<div class="eqsum">' + sum + '</div><ul class="eqlist">' + rows + '</ul>' + resHtml
+      ? '<div class="eqsum">' + sum + '</div>' + (state.eqFilter ? '<p class="eqfil"><span>Viendo ' + pend.filter(eqMatch).length + ' de ' + pend.length + '</span><button type="button" class="mini" data-eqf="">Ver todos</button></p>' : '') + '<ul class="eqlist">' + rows + '</ul>' + resHtml
       : '<div class="eqok">✓ El equipo está al día <small>ningún cliente esperando respuesta</small></div>' + resTxt) +
       '<p class="eqmeta">Comprobado en Gmail ' + esc(cuando) + '.</p>';
   }
@@ -808,7 +811,7 @@
     html += '<li class="plain"><span class="muted" style="font-size:12px">Calculado ' + esc(hhmm(w.calculado)) + ' con tus asuntos, el buzón y el calendario.</span><span></span></li>';
     $('#semana').innerHTML = html;
   }
-  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTiles(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderPerVenc(); renderFolds(); renderHecho(); renderClientes(); renderIncidencias(); renderTendencia(); renderResumenes(); }
+  function renderAll() { header(); renderScore(); renderFresh(); renderBiz(); renderOperacion(); renderTiles(); renderTurnos(); renderSemana(); renderParte(); renderFirma(); renderAgenda(); renderDelegado(); renderEquipo(); renderRadar(); renderLibreta(); renderPerVenc(); renderFolds(); renderHecho(); renderClientes(); renderAreas(); renderIncidencias(); renderVigilar(); renderTendencia(); renderResumenes(); }
 
   // ---------- datos ----------
   function showBanner(msg, err) { const b = $('#banner'); b.textContent = msg; b.className = 'banner' + (err ? ' err' : ''); b.hidden = !msg; }
@@ -845,7 +848,7 @@
     state.loadErr = false;
     await Promise.all(TABLES.concat('semana').map(loadTable));
     // V6: si carga bien, se guarda el estado; si no hay red, se sigue viendo el último con su hora.
-    if (!state.loadErr) { state.snapAt = null; state.loadedAt = Date.now(); await loadHist(); saveSnap(); showBanner(''); }
+    if (!state.loadErr) { state.snapAt = null; state.loadedAt = Date.now(); await loadHist(); await loadExtra(); saveSnap(); showBanner(''); }
     else { if (!state.snapAt && state.loadedAt) state.snapAt = state.loadedAt; if (state.snapAt) showBanner(snapTxt(), true); }
     state.loaded = true; renderAll();
   }
@@ -1228,7 +1231,7 @@
     const vd = state.vivo && state.vivo.datos; const tg = vd && vd.fecha === hoy && vd.unidades && vd.unidades.torneos_gm; const gm = tg && Array.isArray(tg.hoy) ? tg.hoy : [];
     const hs = syncHoy(); const inf = hs && Array.isArray(hs.torneo_hoy) ? hs.torneo_hoy : [];
     const nombres = []; cal.map((e) => { const t = torneoName(e); return (t.codigo ? t.codigo + ' · ' : '') + t.nombre; }).concat(gm.map((g) => g.nombre)).forEach((x) => { if (x && !nombres.some((y) => igualT(x, y))) nombres.push(x); });
-    return nombres.map((n) => ({ nombre: n, gm: gm.find((x) => igualT(x.nombre, n)) || null, inf: inf.find((x) => igualT(x.nombre || '', n)) || null }));
+    return nombres.map((n) => { const m = String(n).match(/^(PO|PR|PB|AB|A|B|F|P) · (.+)$/); return { nombre: nice(m ? m[2] : n), codigo: m ? m[1] : null, gm: gm.find((x) => igualT(x.nombre, n)) || null, inf: inf.find((x) => igualT(x.nombre || '', n)) || null }; });
   }
   function turnosAhora() {
     const vd = state.vivo && state.vivo.datos; const t = vd && vd.fecha === ymd(today()) && vd.unidades && vd.unidades.turnos;
@@ -1264,7 +1267,7 @@
     else if (nx) { cab = 'Siguiente · ' + enCuanto(new Date(nx.inicio), now); what = hhmm(nx.inicio) + ' · ' + evName(nx); }
     if (foco && cl.has(foco.id)) { const otra = reun.find((e) => e.id !== foco.id && cl.has(e.id) && new Date(e.inicio) < new Date(foco.fin) && new Date(foco.inicio) < new Date(e.fin)); chipH = '<span class="chip crit">se pisa' + (otra ? ' con ' + hhmm(otra.inicio) : '') + '</span>'; }
     else if (foco && foco.mi_respuesta === 'needsAction') chipH = '<span class="chip flag">sin responder</span>';
-    setTile('tDia', '<span class="dialw">' + dialSvg(conHora, cl, now) + '</span><span class="nx"><span>' + lab(cab) + '<span class="what">' + esc(what) + '</span></span>' + chipH + '</span>',
+    setTile('tDia', '<span class="dialw">' + dialSvg(conHora, cl, now) + '</span><span class="nx"><span class="nxh">' + lab(cab) + chipH + '</span><span class="what">' + esc(what) + '</span></span>',
       { sig: reun.map((e) => e.id + (e.inicio || '')).join('|') + '#' + cl.size });
 
     // Parte
@@ -1273,13 +1276,13 @@
     // Modo torneo: el día de torneo su casilla sube bajo el parte, a todo el ancho
     const tors = torneoHoy(); const t0 = tors[0];
     if (t0) {
-      const g = t0.gm, i = t0.inf; const datos = [];
-      if (g && g.salida) datos.push('salida ' + g.salida); if (i && i.bandera) datos.push('bandera ' + i.bandera);
-      if (i && typeof i.asuntos === 'number' && i.asuntos > 0) datos.push(plural(i.asuntos, 'asunto abierto', 'asuntos abiertos'));
-      if (g && g.espera) datos.push(g.espera + ' en espera');
+      const g = t0.gm, i = t0.inf; const kv = [];
       const ins = g && typeof g.inscritos === 'number' ? g.inscritos : null; const pz = g && typeof g.plazas === 'number' && g.plazas > 0 ? g.plazas : null;
-      setTile('tTorneo', '<span class="trow"><span>' + lab('Torneo hoy' + (tors.length > 1 ? ' · ' + tors.length : '')) + '<span class="name">' + esc(t0.nombre) + '</span>' + sub(datos.length ? datos.join(' · ') : 'sin datos de inscritos todavía', 'wrap') + '</span>' +
-        (ins !== null ? '<span class="rowb">' + big(String(ins), 'm') + (pz ? sub('de ' + pz) : sub('inscritos')) + '</span>' : '') + '</span>' +
+      if (i && i.bandera) kv.push(['Bandera', i.bandera]); if (g && g.salida) kv.push(['Salida', g.salida]);
+      if (ins !== null) kv.push(['Inscritos', ins + (pz ? ' de ' + pz : '')]); if (g && g.espera) kv.push(['En espera', g.espera]);
+      if (i && typeof i.asuntos === 'number' && i.asuntos > 0) kv.push([i.asuntos === 1 ? 'Asunto abierto' : 'Asuntos abiertos', i.asuntos]);
+      setTile('tTorneo', lab('Torneo hoy' + (t0.codigo && CODIGOS[t0.codigo] ? ' · ' + CODIGOS[t0.codigo] : '') + (tors.length > 1 ? ' · y ' + (tors.length - 1) + ' más' : '')) + '<span class="name">' + esc(t0.nombre) + '</span>' +
+        (kv.length ? '<span class="kvs">' + kv.map((x) => '<span class="kv"><i>' + esc(x[0]) + '</i><b>' + esc(String(x[1])) + '</b></span>').join('') + '</span>' : sub('sin más datos del torneo todavía')) +
         (ins !== null && pz ? '<span class="bar"><i style="width:' + Math.min(100, ins / pz * 100).toFixed(1) + '%"></i></span>' : ''), { sig: t0.nombre + '#' + ins });
     } else setTile('tTorneo', '', { hidden: true });
 
@@ -1296,7 +1299,7 @@
     const hs = syncHoy(); const c = hs && hs.clientes; const stI = informeStale();
     const rec = c && typeof c.reclamaciones_sin_respuesta === 'number' ? c.reclamaciones_sin_respuesta : null; const din = c && c.dinero_pendiente != null ? c.dinero_pendiente : null;
     setTile('tCli', lab('Clientes') + (rec === null ? big('—', 'dim') + sub(stI || 'sin dato de reclamaciones')
-      : '<span class="rowc">' + big(String(rec), rec > 0 ? 'crit' : 'ok') + '<span class="sub wrap strong">' + (rec === 1 ? 'reclamación sin respuesta' : 'reclamaciones sin respuesta') + '</span></span>' + (din !== null ? sub(din + ' con dinero pendiente') : '')),
+      : '<span class="rowc">' + big(String(rec), rec > 0 ? 'crit' : 'ok') + '<span class="sub wrap strong">' + (rec === 1 ? 'reclamación sin respuesta' : 'reclamaciones sin respuesta') + '</span></span>' + (din !== null ? sub(plural(Number(din) || 0, 'asunto de dinero', 'asuntos de dinero')) : '')),
       { crit: rec > 0, stale: rec === null, sig: rec === null ? null : rec + '#' + din });
 
     // Campo (con las incidencias abiertas del día)
@@ -1320,7 +1323,7 @@
     const r = state.revision; const pend = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : null; const stB = buzonStale();
     const viejo = pend && pend.length ? Math.max.apply(null, pend.map((p) => typeof p.dias === 'number' ? p.dias : 0)) : 0;
     setTile('tBuzon', lab('Buzón del equipo') + (pend === null ? big('—', 'm dim') + sub(stB || 'sin revisión todavía')
-      : '<span class="rowb">' + big(String(pend.length), 'm' + (pend.length ? '' : ' ok')) + sub(pend.length ? 'esperando' : 'al día') + '</span>' + sub(stB || (pend.length ? 'el más antiguo, ' + (viejo === 0 ? 'de hoy' : plural(viejo, 'día', 'días')) : 'ningún cliente esperando'), !stB && viejo >= 3 ? 'crit' : '')),
+      : '<span class="rowb">' + big(String(pend.length), 'm' + (pend.length ? '' : ' ok')) + sub(pend.length ? 'esperando' : 'al día') + '</span>' + sub(stB || (pend.length ? 'el más antiguo, ' + (viejo === 0 ? 'de hoy' : plural(viejo, 'día', 'días')) : 'ningún cliente esperando'), !stB && viejo >= 3 ? 'crit' : '') + (areasResumen().length ? sub(areasResumen().join(' · '), 'wrap') : '')),
       { crit: viejo >= 7, stale: !!stB, sig: pend === null ? null : pend.map((p) => p.enlace || p.asunto || '').sort().join('|') });
 
     // Trabajan
@@ -1344,34 +1347,46 @@
   // ---------- Clientes ----------
   // El informe envía hoy solo recuentos. Cuando envíe el detalle (clientes.reclamaciones y clientes.dinero: asunto, días, área, estado,
   // importe, enlace) se lista aquí caso a caso; mientras tanto se dice el recuento y que el detalle no ha llegado. Nunca un dato inventado.
-  function casoRow(x, hotDias) {
-    const d = typeof x.dias === 'number' ? x.dias : null; const hot = d !== null && d >= hotDias;
-    const imp = typeof x.importe === 'number' ? eur(x.importe) : x.importe ? String(x.importe) : '';
-    const meta = [x.bandeja || x.area || x.unidad || '', imp].filter(Boolean).map(esc).join(' · ');
-    const inner = '<span class="age">' + (d === null ? '—' : d === 0 ? 'hoy' : d + ' d') + '</span><span class="ct"><b>' + esc(x.asunto || x.titulo || 'Sin asunto') + '</b><span>' + (x.estado ? '<em>' + esc(x.estado) + '</em>' + (meta ? ' · ' : '') : '') + meta + '</span></span>';
+  // P129 (21/11/2026) · contrato de `sync.datos.clientes` versión 1: listas `reclamaciones` y `dinero` con su `*_meta`.
+  // Lista null + meta.disponible = false → sin dato. Lista vacía + disponible = true → cero real. La hora válida es meta.leido_at.
+  function casoRow(x, tipo, dup) {
+    const ds = typeof x.dias_sin_respuesta === 'number' ? x.dias_sin_respuesta : null; const da = typeof x.dias_abierta === 'number' ? x.dias_abierta : typeof x.dias === 'number' ? x.dias : null;
+    const d = ds !== null ? ds : da; const hot = tipo === 'rec' ? (d !== null && d >= 1) || /cr[ií]tica/i.test(x.nivel || '') : ds !== null && ds >= 3;
+    const est = tipo === 'din' && x.estado_hilo ? x.estado_hilo : x.estado;
+    const donde = [x.area, x.bandeja].filter(Boolean).filter((v, i, l) => l.indexOf(v) === i).join(' · ');
+    const meta = [donde, typeof x.importe === 'number' ? eur(x.importe) : '', ds !== null && da !== null && da !== ds ? 'abierto hace ' + (da === 0 ? 'hoy' : da + ' d') : '', x.hilos_total > 1 ? x.hilos_total + ' hilos' : '', dup ? 'también en reclamaciones' : ''].filter(Boolean).map(esc).join(' · ');
+    const inner = '<span class="age">' + (d === null ? '—' : d === 0 ? 'hoy' : d + ' d') + '</span><span class="ct"><b>' + esc(x.asunto || x.titulo || 'Sin asunto') + '</b><span>' + (est ? '<em>' + esc(est) + '</em>' + (meta ? ' · ' : '') : '') + meta + '</span></span>';
     return x.enlace && /^https:\/\//i.test(x.enlace) ? '<a class="crow' + (hot ? ' hot' : '') + '" href="' + esc(x.enlace) + '" target="_blank" rel="noopener">' + inner + '<span class="go">' + svg(I_GO, 18) + '</span></a>'
       : '<div class="crow' + (hot ? ' hot' : '') + '">' + inner + '<span></span></div>';
   }
+  function cliBloque(c, k) {
+    const lista = c && Array.isArray(c[k]) ? c[k] : null; const m = c && c[k + '_meta'] && typeof c[k + '_meta'] === 'object' ? c[k + '_meta'] : null;
+    const cuenta = c ? (k === 'reclamaciones' ? c.reclamaciones_sin_respuesta : c.dinero_pendiente) : null; const n = lista ? lista.length : typeof cuenta === 'number' ? cuenta : cuenta != null && isFinite(Number(cuenta)) ? Number(cuenta) : null;
+    const hoy = ymd(today()); const leido = m && m.leido_at ? (localDay(m.leido_at) === hoy ? 'leído a las ' + hhmm(m.leido_at) : 'leído el ' + fmtShort(localDay(m.leido_at)) + ' ' + hhmm(m.leido_at)) : '';
+    return { lista, n, leido, sinDetalle: !lista, motivo: m && m.disponible === false ? (m.motivo || 'no disponible') : '', foto: c && c.informe && typeof c.informe === 'object' ? c.informe : null };
+  }
   function renderClientes() {
     const hs = syncHoy(); const c = hs && hs.clientes; const stI = informeStale();
-    const rec = c && typeof c.reclamaciones_sin_respuesta === 'number' ? c.reclamaciones_sin_respuesta : null; const din = c && c.dinero_pendiente != null ? c.dinero_pendiente : null;
-    const lr = c && Array.isArray(c.reclamaciones) ? c.reclamaciones : c && Array.isArray(c.reclamaciones_detalle) ? c.reclamaciones_detalle : null;
-    const ldn = c && Array.isArray(c.dinero) ? c.dinero : c && Array.isArray(c.dinero_detalle) ? c.dinero_detalle : null;
+    const R = cliBloque(c, 'reclamaciones'), D = cliBloque(c, 'dinero'); const rec = R.n, din = D.n;
     const r = state.revision; const pend = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : null; const res = r && Array.isArray(r.resueltos_equipo) ? r.resueltos_equipo : null;
     const cel = (v, t, crit) => '<div><b' + (crit ? ' class="crit"' : '') + '>' + (v === null ? '—' : esc(String(v))) + '</b><span>' + esc(t) + '</span></div>';
-    $('#cliPulse').innerHTML = cel(rec, rec === 1 ? 'reclamación' : 'reclamaciones', rec > 0) + cel(din, 'con dinero pendiente') + cel(pend ? pend.length : null, 'esperando al equipo') + cel(res ? res.length : null, res && res.length === 1 ? 'resuelto hoy' : 'resueltos hoy');
+    $('#cliPulse').innerHTML = cel(rec, rec === 1 ? 'reclamación' : 'reclamaciones', rec > 0) + cel(din, din === 1 ? 'asunto de dinero' : 'asuntos de dinero') + cel(pend ? pend.length : null, 'esperando al equipo') + cel(res ? res.length : null, res && res.length === 1 ? 'resuelto hoy' : 'resueltos hoy');
     const hora = hs && hs.informe_hora ? 'informe de las ' + hs.informe_hora : '';
-    $('#reclS').textContent = rec === null ? (stI || 'sin dato') : rec ? plural(rec, 'sin respuesta', 'sin respuesta') + (hora ? ' · ' + hora : '') : 'ninguna sin respuesta' + (hora ? ' · ' + hora : '');
-    $('#reclList').innerHTML = lr && lr.length ? '<div class="cbody">' + lr.slice().sort((a, b) => (b.dias || 0) - (a.dias || 0)).map((x) => casoRow(x, 1)).join('') + '</div>'
-      : rec === null ? '<p class="cnote">' + esc(L0(stI, 'El informe de hoy no trae el dato de reclamaciones.')) + '</p>'
+    const sinDet = (B) => B.motivo ? 'Sin detalle ahora (' + B.motivo + ').' : 'El detalle todavía no ha llegado; se actualiza con cada revisión del buzón.';
+    $('#reclS').textContent = rec === null ? (stI || 'sin dato') : (rec ? plural(rec, 'sin respuesta', 'sin respuesta') : 'ninguna sin respuesta') + (R.leido || hora ? ' · ' + (R.leido || hora) : '');
+    $('#reclList').innerHTML = R.lista && R.lista.length ? '<div class="cbody">' + R.lista.slice().sort((a, b) => (b.dias_sin_respuesta || 0) - (a.dias_sin_respuesta || 0)).map((x) => casoRow(x, 'rec')).join('') + '</div>'
+      : rec === null ? '<p class="cnote">' + esc(L0(stI, 'Hoy no hay dato de reclamaciones.')) + '</p>'
       : rec === 0 ? '<p class="cnote">Ninguna reclamación sin respuesta.</p>'
-      : '<p class="cnote"><b>' + esc(rec === 1 ? '1 reclamación sin respuesta.' : rec + ' reclamaciones sin respuesta.') + '</b> El informe todavía no envía el detalle de cada una.</p>';
-    $('#dinS').textContent = din === null ? (stI || 'sin dato') : din ? plural(Number(din) || din, 'cliente', 'clientes') + (c.dinero_tipos ? ' · ' + c.dinero_tipos : '') : 'ninguno pendiente';
-    $('#dinList').innerHTML = ldn && ldn.length ? '<div class="cbody">' + ldn.slice().sort((a, b) => (b.dias || 0) - (a.dias || 0)).map((x) => casoRow(x, 3)).join('') + '</div>'
-      : din === null ? '<p class="cnote">' + esc(L0(stI, 'El informe de hoy no trae el dato de dinero pendiente.')) + '</p>'
-      : '<p class="cnote">' + (Number(din) ? '<b>' + esc(plural(Number(din), 'cliente', 'clientes')) + ' con dinero pendiente.</b> ' + (c.dinero_tipos ? esc(c.dinero_tipos) + '. ' : '') + 'El informe todavía no envía el detalle de cada caso.' : 'Ningún cliente con dinero pendiente.') +
-        (c.devoluciones_7d ? '<br>Devoluciones en 7 días: ' + esc(c.devoluciones_7d) + '.' : '') + '</p>';
-    defaultOpen('dRecl', rec > 0); defaultOpen('dDin', Number(din) > 0);
+      : '<p class="cnote"><b>' + esc(rec === 1 ? '1 reclamación sin respuesta.' : rec + ' reclamaciones sin respuesta.') + '</b> ' + esc(sinDet(R)) + '</p>';
+    const enRec = {}; (R.lista || []).forEach((x) => { if (x.thread_id) enRec[String(x.thread_id).toLowerCase()] = 1; });
+    const foto = D.foto && typeof D.foto.dinero_pendiente === 'number' && D.lista && D.foto.dinero_pendiente !== din ? D.foto.dinero_pendiente + ' en el informe' + (D.foto.hora ? ' de las ' + D.foto.hora : '') : '';
+    $('#dinS').textContent = din === null ? (stI || 'sin dato') : din ? [plural(din, 'abierto', 'abiertos'), foto, D.leido].filter(Boolean).join(' · ') : 'ninguno abierto' + (D.leido ? ' · ' + D.leido : '');
+    const pie = '<p class="cnote">Son asuntos de correo abiertos donde hay dinero de por medio, no importes pendientes de pago. ' + (c && c.dinero_tipos ? esc(c.dinero_tipos) + '. ' : '') + (c && c.devoluciones_7d ? 'Devoluciones en 7 días: ' + esc(c.devoluciones_7d) + '.' : '') + '</p>';
+    $('#dinList').innerHTML = D.lista && D.lista.length ? '<div class="cbody">' + D.lista.slice().sort((a, b) => (b.dias_sin_respuesta === null || b.dias_sin_respuesta === undefined ? -1 : b.dias_sin_respuesta) - (a.dias_sin_respuesta === null || a.dias_sin_respuesta === undefined ? -1 : a.dias_sin_respuesta) || (b.dias_abierta || 0) - (a.dias_abierta || 0)).map((x) => casoRow(x, 'din', x.thread_id && enRec[String(x.thread_id).toLowerCase()])).join('') + '</div>' + pie
+      : din === null ? '<p class="cnote">' + esc(L0(stI, 'Hoy no hay dato de asuntos de dinero.')) + '</p>'
+      : din === 0 ? '<p class="cnote">Ningún asunto de dinero abierto.' + (c && c.devoluciones_7d ? '<br>Devoluciones en 7 días: ' + esc(c.devoluciones_7d) + '.' : '') + '</p>'
+      : '<p class="cnote"><b>' + esc(plural(din, 'asunto de dinero abierto', 'asuntos de dinero abiertos')) + '.</b> ' + esc(sinDet(D)) + '</p>' + pie;
+    defaultOpen('dRecl', rec > 0); defaultOpen('dDin', din > 0);
   }
   function L0(stale, otro) { return stale ? stale.charAt(0).toUpperCase() + stale.slice(1) + '.' : otro; }
 
@@ -1413,7 +1428,7 @@
     // El tablero enseña la primera línea del parte; el resto se despliega sin salir de la casilla
     const pm = $('#parteMas'); const tp = $('#tParte');
     if (pm && tp) { const extra = $('#parte').querySelectorAll('p:not(.calm):not(.empty)').length - 1 + ($('#parte').querySelector('.since') ? 1 : 0); const cut = tp.classList.contains('cut');
-      pm.hidden = extra < 1; pm.textContent = cut ? 'Ver el parte completo' : 'Recoger el parte'; pm.setAttribute('aria-expanded', String(!cut)); }
+      const largo = [...$('#parte').querySelectorAll('p:not(.calm):not(.empty)')].some((x) => x.scrollHeight > x.clientHeight + 2); pm.hidden = extra < 0 || (cut && !largo && !$('#parte').querySelector('.since')); pm.textContent = cut ? 'Ampliar' : 'Recoger'; pm.setAttribute('aria-expanded', String(!cut)); }
 
     const v = $('#vieneS'); if (v) v.textContent = vieneTxt().txt;
     const c = $('#cerradoS'); if (c && $('#cierreLine')) c.textContent = $('#cierreLine').textContent.replace(/^Hoy: /, 'hoy ');
@@ -1437,7 +1452,7 @@
   }
 
   // ---------- último estado guardado (abre al instante y sin cobertura) ----------
-  const SNAP = 'dp6.snap'; const SNAPK = ['items', 'events', 'prep', 'briefing', 'briefingPrev', 'revision', 'libreta', 'solicitudes', 'sync', 'vivoRaw', 'semana', 'hist'];
+  const SNAP = 'dp6.snap'; const SNAPK = ['items', 'events', 'prep', 'briefing', 'briefingPrev', 'revision', 'libreta', 'solicitudes', 'sync', 'vivoRaw', 'semana', 'hist', 'vig', 'metricas', 'avisos', 'areas', 'resp'];
   function saveSnap() { try { const o = { at: Date.now() }; SNAPK.forEach((k) => { o[k] = state[k]; }); localStorage.setItem(SNAP, JSON.stringify(o)); } catch (e) {} }
   function loadSnap() { try { const s = JSON.parse(localStorage.getItem(SNAP) || 'null'); if (!s || !Array.isArray(s.items)) return false; SNAPK.forEach((k) => { if (s[k] !== undefined && s[k] !== null) state[k] = s[k]; }); state.snapAt = s.at; return true; } catch (e) { return false; } }
   function storedUserOk() { try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^sb-.*-auth-token$/.test(k)) { const v = JSON.parse(localStorage.getItem(k)); const u = v && (v.user || (v.currentSession && v.currentSession.user)); if (u && u.email === EMAIL) return true; } } } catch (e) {} return false; }
@@ -1459,6 +1474,189 @@
   // El reloj de la cabecera y la esfera avanzan cada minuto; los datos se recargan cada 5 minutos mientras la app está a la vista.
   setInterval(() => { if (!document.hidden && !$('#appView').hidden) { header(); renderInicio(); } }, 60000);
   setInterval(() => { if (!document.hidden && !$('#appView').hidden && navigator.onLine !== false) loadAll(); }, 5 * 60000);
+
+  // ================= V6.1 (21/11/2026 · Sr. Vela) =================
+  // «Vigilar» y avisos al móvil (fase 2 de Supabase), buzón por bandeja y responsable, filtro por pestañitas en «Esperando
+  // respuesta del equipo», parte como lista numerada y nombres de torneo sin mayúsculas corridas.
+  const fmtN = (v) => v === null || v === undefined || v === '' ? '—' : String(Math.round(Number(v) * 100) / 100).replace('.', ',');
+  const OPS = { '<': 'menor que', '<=': 'menor o igual que', '>': 'mayor que', '>=': 'mayor o igual que', '=': 'igual a' };
+  const I_PLUS = '<path d="M12 5v14M5 12h14"></path>';
+
+  // ---------- carga de lo nuevo (si la fase 2 no estuviera instalada, estos módulos simplemente no salen) ----------
+  let canal6 = null, extraT = null;
+  async function loadExtra() {
+    const [v, m, a, ar, rp] = await Promise.all([
+      sb.from('vigilancias').select('*').order('created_at'), sb.from('vigilar_metricas').select('*').order('orden'),
+      sb.from('avisos').select('*').order('at', { ascending: false }).limit(12), sb.rpc('buzon_areas', { p_dias: 7 }), sb.from('despacho_responsables').select('*')]);
+    if (!v.error && Array.isArray(v.data)) state.vig = v.data; if (!m.error && Array.isArray(m.data)) state.metricas = m.data;
+    if (!a.error && Array.isArray(a.data)) state.avisos = a.data; if (!ar.error && ar.data && Array.isArray(ar.data.areas)) state.areas = ar.data;
+    if (!rp.error && Array.isArray(rp.data)) state.resp = rp.data;
+    if (!canal6 && !v.error) {
+      const re = () => { clearTimeout(extraT); extraT = setTimeout(async () => { await loadExtra(); renderAll(); }, 300); };
+      canal6 = sb.channel('despacho6').on('postgres_changes', { event: '*', schema: 'public', table: 'vigilancias' }, re).on('postgres_changes', { event: '*', schema: 'public', table: 'avisos' }, re); canal6.subscribe();
+    }
+    pushEstado();
+  }
+
+  // ---------- Vigilar ----------
+  function metrica(k) { return (state.metricas || []).find((x) => x.clave === k) || { clave: k, nombre: k, unidad: '', fuente: '' }; }
+  function conUnidad(v, u) { return fmtN(v) + (u === '' ? '' : u === '/100' ? '/100' : ' ' + u); }
+  function renderVigilar() {
+    const d = $('#dVig'); const list = Array.isArray(state.vig) ? state.vig : null;
+    if (!d) return; d.hidden = list === null; if (list === null) { setTile('tVig', '', { hidden: true }); return; }
+    const al = list.filter((r) => r.activa && r.en_alerta);
+    $('#vigS').textContent = list.length ? [plural(list.length, 'regla', 'reglas'), al.length ? al.length + ' en alerta' : 'ninguna en alerta'].join(' · ') : 'sin reglas todavía';
+    $('#vigList').innerHTML = list.length ? list.map((r) => { const m = metrica(r.metrica); const est = !r.activa ? 'off' : r.en_alerta ? 'bad' : r.valor === null || r.valor === undefined ? 'nd' : 'ok';
+      return '<button type="button" class="vgrow ' + est + '" data-vig="' + esc(r.id) + '"><span class="dot"></span><span class="vt2"><b>' + esc(r.titulo) + '</b><span>' + esc(m.nombre + ' ' + ({ '>=': '≥', '<=': '≤' }[r.op] || r.op) + ' ' + conUnidad(r.umbral, m.unidad)) + ' · ' +
+        (!r.activa ? 'en pausa' : r.valor === null || r.valor === undefined ? 'sin dato ahora' : 'ahora ' + esc(conUnidad(r.valor, m.unidad))) + (r.evaluada_at && r.activa ? ' · ' + hhmm(r.evaluada_at) : '') + '</span></span><span class="go">' + svg(I_GO, 18) + '</span></button>'; }).join('')
+      : '<p class="cnote">Sin reglas. Añade la primera con el botón de abajo.</p>';
+    // avisos
+    const av = Array.isArray(state.avisos) ? state.avisos : []; const hoy = ymd(today());
+    $('#avList').innerHTML = av.length ? av.slice(0, 8).map((a) => '<li class="plain"><span>' + esc(a.titulo) + (a.cuerpo ? '<span class="sub">' + esc(a.cuerpo) + '</span>' : '') + '</span><span class="r">' + esc((localDay(a.at) === hoy ? '' : fmtShort(localDay(a.at)) + ' ') + hhmm(a.at)) + '</span></li>').join('')
+      : '<li class="plain"><span class="muted">Todavía no hay avisos.</span><span></span></li>';
+    const p = state.push || 'cargando'; const ps = $('#pushS'), pb = $('#btnPush'), pt = $('#btnPushTest');
+    ps.textContent = p === 'activo' ? 'Avisos activados en este dispositivo.' : p === 'denegado' ? 'Los avisos están bloqueados para Despacho en los ajustes de este dispositivo.'
+      : p === 'no' ? 'Aquí no se pueden activar avisos. En el iPhone: añade Despacho a la pantalla de inicio y ábrelo desde ese icono.' : p === 'inactivo' ? 'Este dispositivo todavía no recibe avisos.' : '';
+    pb.hidden = p !== 'inactivo'; pt.hidden = p !== 'activo';
+    // casilla del tablero
+    setTile('tVig', lab('Vigilar') + '<span class="go">' + sub(al.length ? al.length + ' en alerta · ' + al[0].titulo : list.length ? 'todo en orden · ' + plural(list.length, 'regla', 'reglas') : 'sin reglas') + svg(I_GO, 16) + '</span>',
+      { crit: al.length > 0, sig: al.map((r) => r.id).sort().join('|') });
+  }
+  function openVig(r) {
+    state.vigEdit = r || null; const ms = state.metricas || [];
+    $('#vgMet').innerHTML = ms.map((m) => '<option value="' + esc(m.clave) + '">' + esc(m.nombre) + (m.unidad ? ' (' + esc(m.unidad) + ')' : '') + ' · ' + esc(m.fuente) + '</option>').join('');
+    $('#vgTitle').textContent = r ? 'Regla' : 'Nueva regla';
+    $('#vgTitulo').value = r ? r.titulo : ''; $('#vgMet').value = r ? r.metrica : (ms[0] ? ms[0].clave : ''); $('#vgOp').value = r ? r.op : '>';
+    $('#vgUmbral').value = r ? String(r.umbral).replace('.', ',') : ''; $('#vgDesde').value = r ? r.desde_hora : 7; $('#vgHasta').value = r ? r.hasta_hora : 22;
+    $('#vgActiva').checked = r ? !!r.activa : true; $('#vgDel').hidden = !r; $('#vgDel').textContent = 'Eliminar'; $('#vgDel').dataset.armed = ''; $('#vgStatus').textContent = '';
+    $('#vigOverlay').hidden = false;
+  }
+  function closeVig() { $('#vigOverlay').hidden = true; state.vigEdit = null; }
+  $('#vigList').addEventListener('click', (e) => { const b = e.target.closest('[data-vig]'); if (!b) return; const r = (state.vig || []).find((x) => x.id === b.dataset.vig); if (r) openVig(r); });
+  $('#btnVigNew').addEventListener('click', () => openVig(null));
+  $('#vgCancel').addEventListener('click', closeVig);
+  $('#vigOverlay').addEventListener('click', (e) => { if (e.target === $('#vigOverlay')) closeVig(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('#vigOverlay').hidden) closeVig(); });
+  $('#vgSave').addEventListener('click', async () => {
+    const st = $('#vgStatus'); const umbral = Number(String($('#vgUmbral').value).trim().replace(',', '.'));
+    const desde = Number($('#vgDesde').value), hasta = Number($('#vgHasta').value); const met = $('#vgMet').value, op = $('#vgOp').value;
+    if (!met) { st.textContent = 'Elige qué vigilar.'; return; }
+    if (String($('#vgUmbral').value).trim() === '' || !isFinite(umbral)) { st.textContent = 'Escribe el valor a partir del cual avisar.'; return; }
+    if (!(desde >= 0 && desde <= 23 && hasta >= 1 && hasta <= 24 && desde < hasta)) { st.textContent = 'El horario va de 0 a 24 y «desde» tiene que ser menor que «hasta».'; return; }
+    const m = metrica(met); const titulo = ($('#vgTitulo').value.trim() || (m.nombre + ' ' + OPS[op] + ' ' + conUnidad(umbral, m.unidad))).slice(0, 160);
+    const data = { titulo, metrica: met, op, umbral, desde_hora: desde, hasta_hora: hasta, activa: $('#vgActiva').checked };
+    // Si cambia la condición, la regla vuelve a empezar: no arrastra la alerta de la condición anterior.
+    const r = state.vigEdit; if (r && (r.metrica !== met || r.op !== op || Number(r.umbral) !== umbral)) Object.assign(data, { en_alerta: false, alerta_desde: null, valor: null, evaluada_at: null });
+    $('#vgSave').disabled = true;
+    const { error } = r ? await sb.from('vigilancias').update(data).eq('id', r.id) : await sb.from('vigilancias').insert(data);
+    $('#vgSave').disabled = false;
+    if (error) { st.textContent = 'No se pudo guardar (' + error.message + ').'; return; }
+    closeVig(); await loadExtra(); renderAll(); toast(r ? 'Regla guardada.' : 'Regla creada: se comprueba cada 5 minutos.');
+  });
+  $('#vgDel').addEventListener('click', async () => {
+    const b = $('#vgDel'); if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = '¿Seguro? Eliminar'; return; }
+    if (!state.vigEdit) return; const { error } = await sb.from('vigilancias').delete().eq('id', state.vigEdit.id);
+    if (error) { $('#vgStatus').textContent = 'No se pudo eliminar (' + error.message + ').'; return; }
+    closeVig(); await loadExtra(); renderAll();
+  });
+
+  // ---------- avisos al móvil ----------
+  const b64uBytes = (s) => { const t = String(s).replace(/-/g, '+').replace(/_/g, '/'); const p = t + '='.repeat((4 - (t.length % 4)) % 4); const raw = atob(p); const out = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i); return out; };
+  async function pushEstado() {
+    let e = 'no';
+    try {
+      if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
+        if (Notification.permission === 'denied') e = 'denegado';
+        else { const reg = await navigator.serviceWorker.getRegistration(); const s = reg && Notification.permission === 'granted' ? await reg.pushManager.getSubscription() : null; e = s ? 'activo' : 'inactivo'; }
+      }
+    } catch (err) { e = 'no'; }
+    if (state.push !== e) { state.push = e; renderVigilar(); }
+  }
+  $('#btnPush').addEventListener('click', async () => {
+    const ps = $('#pushS'); const b = $('#btnPush'); b.disabled = true;
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { state.push = perm === 'denied' ? 'denegado' : 'inactivo'; renderVigilar(); return; }
+      const { data: pub, error: e1 } = await sb.rpc('avisos_clave_publica');
+      if (e1 || !pub) { ps.textContent = 'El servidor de avisos no ha dado su clave' + (e1 ? ' (' + e1.message + ')' : '') + '. Inténtalo en un minuto.'; return; }
+      const reg = await navigator.serviceWorker.ready; const opts = { userVisibleOnly: true, applicationServerKey: b64uBytes(pub) };
+      let s = await reg.pushManager.getSubscription();
+      if (!s) { try { s = await reg.pushManager.subscribe(opts); } catch (err) { const old = await reg.pushManager.getSubscription(); if (old) { await old.unsubscribe(); s = await reg.pushManager.subscribe(opts); } else throw err; } }
+      const j = s.toJSON(); const ua = navigator.userAgent; const disp = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'Navegador';
+      const { error: e2 } = await sb.from('push_subs').upsert({ endpoint: s.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, dispositivo: disp, activa: true, fallos: 0 }, { onConflict: 'endpoint' });
+      if (e2) { ps.textContent = 'No se pudo registrar este dispositivo (' + e2.message + ').'; return; }
+      state.push = 'activo'; renderVigilar(); toast('Avisos activados en este dispositivo.');
+    } catch (err) { ps.textContent = 'No se pudieron activar los avisos (' + (err && err.message ? err.message : err) + ').'; }
+    finally { b.disabled = false; }
+  });
+  $('#btnPushTest').addEventListener('click', async () => {
+    const { error } = await sb.from('avisos').insert({ tipo: 'prueba', titulo: 'Aviso de prueba', cuerpo: 'Si lo ves en el móvil, los avisos funcionan.' });
+    toast(error ? 'No se pudo enviar la prueba (' + error.message + ').' : 'Prueba enviada: debería llegar en unos segundos.');
+  });
+
+  // ---------- buzón por bandeja y responsable ----------
+  // Extranjeros es de Mónica y Escuela de Jessica (lo guarda Supabase, no el código): aquí se ve si cada bandeja está al día.
+  function respDe(nombre) { const n = norm(nombre); const r = (state.resp || []).find((x) => x.patron && n.includes(norm(x.patron))); return r || null; }
+  // Gmail etiqueta cada correo con un Área (Escuela CNG, Extranjeros…) y con un Responsable (Atención al Cliente, Sergio…).
+  // Aquí se mide por Área, que es lo que lleva cada responsable de verdad; mientras la revisión guardada no traiga el área, por bandeja.
+  function modoAreas() {
+    const r = state.revision; const pend = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : [];
+    return pend.some((p) => p && 'area' in p) || (!pend.length && !!(state.areas && state.areas.area_desde)) ? 'area' : 'bandeja';
+  }
+  function grupoDe(p, modo) { return modo === 'area' ? (p.area || 'Sin área') : (p.bandeja || 'Sin bandeja'); }
+  function areasList() {
+    const r = state.revision; const pend = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : [];
+    const modo = modoAreas(); const pre = modo === 'area' ? 'a:' : 'b:'; const por = {};
+    const fila = (k) => por[k] || (por[k] = { nombre: k, clave: pre + k, ahora: 0, max_dias: null, salieron: null, serie: [], en: [] });
+    pend.forEach((p) => { const o = fila(grupoDe(p, modo)); o.ahora++; if (typeof p.dias === 'number') o.max_dias = Math.max(o.max_dias === null ? 0 : o.max_dias, p.dias); if (modo === 'area' && p.bandeja && !o.en.includes(p.bandeja)) o.en.push(p.bandeja); });
+    const hist = state.areas ? (modo === 'area' ? state.areas.por_area : state.areas.areas) : null;
+    (Array.isArray(hist) ? hist : []).forEach((h) => { const o = fila(h.bandeja); o.salieron = h.salieron; o.serie = Array.isArray(h.serie) ? h.serie : []; });
+    // las áreas con responsable salen siempre: «al día» también es un dato. Sin dato por área todavía, se dice, no se inventa.
+    (state.resp || []).forEach((x) => { if (!Object.keys(por).some((k) => norm(k).includes(norm(x.patron)))) Object.assign(fila(x.area), modo === 'area' ? {} : { sinDato: true, clave: '' }); });
+    return Object.keys(por).map((k) => Object.assign(por[k], { resp: respDe(k), modo })).sort((a, b) => (b.resp ? 1 : 0) - (a.resp ? 1 : 0) || b.ahora - a.ahora || a.nombre.localeCompare(b.nombre));
+  }
+  function areasResumen() { return areasList().filter((a) => a.resp).map((a) => a.nombre + ': ' + (a.sinDato ? 'sin dato aún' : a.ahora ? a.ahora + (a.max_dias ? ' · ' + a.max_dias + ' d' : '') : 'al día')); }
+  function renderAreas() {
+    const d = $('#dAreas'); if (!d) return; const r = state.revision; d.hidden = !r; if (!r) return;
+    const list = areasList(); const modo = modoAreas(); const dias = []; for (let i = 6; i >= 0; i--) dias.push(ymd(addDays(today(), -i)));
+    $('#areasT').textContent = modo === 'area' ? 'Por área y responsable' : 'Por bandeja y responsable';
+    const res = areasResumen(); $('#areasS').textContent = res.length ? res.join(' · ') : plural(list.length, modo === 'area' ? 'área' : 'bandeja', modo === 'area' ? 'áreas' : 'bandejas');
+    const max = Math.max.apply(null, list.map((a) => Math.max.apply(null, a.serie.map((s) => s.n).concat(a.ahora, 1))));
+    // por área solo hay historia desde que la revisión guarda el área: se dice desde cuándo
+    const desde = modo === 'area' && state.areas && state.areas.area_desde ? localDay(state.areas.area_desde) : null;
+    const periodo = desde && desde > dias[0] ? (desde === ymd(today()) ? 'desde hoy' : 'desde el ' + fmtShort(desde)) : 'en 7 días';
+    $('#areasList').innerHTML = list.map((a) => { const por = {}; a.serie.forEach((s) => { por[s.dia] = s.n; }); const hot = a.max_dias !== null && a.max_dias >= 3;
+      const bars = a.serie.length ? '<span class="spark" role="img" aria-label="Pendientes al final de cada uno de los últimos 7 días">' + dias.map((x) => '<i style="height:' + (por[x] ? Math.max(3, Math.round(por[x] / max * 22)) : 2) + 'px"' + (por[x] ? '' : ' class="z"') + '></i>').join('') + '</span>' : '<span class="spark"></span>';
+      const sub2 = [a.resp ? a.resp.responsable : '', a.en.filter((x) => norm(x) !== norm(a.nombre)).length ? 'asignados a ' + a.en.filter((x) => norm(x) !== norm(a.nombre)).join(', ') : ''].filter(Boolean).join(' · ');
+      return '<button type="button" class="arow' + (hot ? ' hot' : '') + (a.clave && state.eqFilter === a.clave ? ' sel' : '') + '" data-eqf="' + esc(a.clave) + '" data-ir="1"' + (a.ahora ? '' : ' disabled') + '>' +
+        '<span class="an"><b>' + esc(a.nombre) + '</b>' + (sub2 ? '<span>' + esc(sub2) + '</span>' : '') + '</span>' + bars +
+        '<span class="ast">' + (a.sinDato ? '<b class="nd">sin dato</b><span>por área, aún</span>' : a.ahora ? '<b>' + a.ahora + '</b><span>' + (a.max_dias === null ? 'esperando' : a.max_dias === 0 ? 'de hoy' : 'hasta ' + a.max_dias + ' d') + '</span>' : '<b class="ok">al día</b><span>nada esperando</span>') + '</span>' +
+        (a.sinDato ? '<span class="aft">La revisión del buzón guardada todavía no trae el área de cada correo. Llega con la próxima pasada (cada 30 minutos).</span>' : '') +
+        (a.salieron !== null && !(a.salieron === 0 && desde === ymd(today())) ? '<span class="aft">' + (a.salieron === 1 ? '1 hilo ha salido' : a.salieron + ' hilos han salido') + ' de pendientes ' + periodo + '</span>' : '') + '</button>'; }).join('');
+  }
+
+  // ---------- filtro de «Esperando respuesta del equipo» por pestañita ----------
+  function eqMatch(p) {
+    const f = state.eqFilter; if (!f) return true; const d = typeof p.dias === 'number' ? p.dias : null;
+    if (f === 'e:vie') return d !== null && d >= 3; if (f === 'e:rec') return d !== null && d > 0 && d < 3; if (f === 'e:hoy') return d !== null && d <= 0;
+    if (f.slice(0, 2) === 'a:') return (p.area || 'Sin área') === f.slice(2);
+    return f.slice(0, 2) === 'b:' && (p.bandeja || 'Sin bandeja') === f.slice(2);
+  }
+  function fchip(cls, key, txt) { return '<button type="button" class="chip fbtn ' + cls + '" data-eqf="' + esc(key) + '" aria-pressed="' + (state.eqFilter === key ? 'true' : 'false') + '">' + esc(txt) + '</button>'; }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-eqf]'); if (!b || b.disabled) return;
+    const k = b.dataset.eqf; if (b.dataset.ir && !k) return; state.eqFilter = state.eqFilter === k && !b.dataset.ir ? null : k; if (k === '') state.eqFilter = null;
+    renderEquipo(); renderAreas();
+    if (b.dataset.ir) { const d = $('#dEq'); if (d && !d.open) { d.dataset.auto = '1'; d.open = true; } requestAnimationFrame(() => d.scrollIntoView({ block: 'start' })); }
+  });
+
+  // ---------- nombres en mayúsculas corridas → nombre propio ----------
+  const SIGLAS = /^(RFEG|CNG|WAGR|PGA|LET|FGM|AESGOLF|AECG|RCG|CG|II|III|IV|VI|VII|VIII|IX|XI|XII|XIII|XIV|XV|XX|XXI|XXV|XXX|U\d+|SUB-?\d+)$/;
+  const MENUDAS = /^(de|del|la|las|el|los|y|e|en|a|al|por|con|para)$/;
+  function nice(s) {
+    s = String(s || '').trim(); if (!s || s !== s.toUpperCase() || !/[A-ZÁÉÍÓÚÑ]{3}/.test(s)) return s;
+    return s.split(/(\s+|-)/).map((w, i) => { if (!/[A-ZÁÉÍÓÚÑ]/.test(w) || SIGLAS.test(w) || /\d/.test(w)) return w; const l = w.toLowerCase(); return i > 0 && MENUDAS.test(l) ? l : l.charAt(0).toUpperCase() + l.slice(1); }).join('');
+  }
 
   // ---------- arranque ----------
   async function showFor(session) {
