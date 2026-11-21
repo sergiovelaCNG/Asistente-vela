@@ -840,6 +840,57 @@ details.neg .sum .t { font-size: 19.5px; line-height: 1.2; }
 .editor h3 { font-family: var(--serif); font-weight: 500; font-size: 26px; letter-spacing: 0; }
 .chk { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 15px; }
 .chk input { width: 22px; height: 22px; min-height: 0; }
+/* ================= V6.2 · resumen legible, «Lo que viene» con pestañas, horario del equipo en azul ================= */
+#parte { counter-reset: none; }
+#parte > p:not(.calm):not(.empty) { padding: 9px 0 0 16px; margin-bottom: 9px; font-size: 16px; }
+#parte > p:not(.calm):not(.empty)::before { content: ""; counter-increment: none; left: 0; top: 18px; width: 6px; height: 6px; border-radius: 1px; transform: rotate(45deg); background: var(--gold); }
+#parte > p:not(.calm):not(.empty):first-child { padding-left: 0; font-size: 20px; line-height: 1.26; }
+#parte > p:not(.calm):not(.empty):first-child::before { display: none; }
+#parte > p.new::after { content: "nuevo"; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-2); font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; vertical-align: 2px; }
+#parte > p.new::before { background: var(--accent-2); }
+#parte > p.done { text-decoration: line-through; text-decoration-thickness: 1px; }
+#parte > p.done::before { background: var(--line); }
+#tParte.cut #parte > p:not(.calm):not(.empty):first-child { -webkit-line-clamp: 3; }
+.novleg { margin: 2px 4px 0; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.novleg::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); }
+/* Lo que viene */
+#tViene { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 10px; padding-top: 14px; padding-bottom: 6px; }
+#tViene.nw::after { top: 12px; right: 12px; }
+.vtabs { display: flex; gap: 6px; margin: 0 -2px; }
+.vtabs button { flex: 1; min-height: 40px; padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); font-family: var(--font); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.vtabs button b { font-family: var(--mono); font-weight: 500; font-size: 12px; margin-left: 5px; opacity: .8; }
+.vtabs button[aria-selected="true"] { background: var(--btn); border-color: var(--btn); color: var(--on-accent); }
+.vlist { display: flex; flex-direction: column; }
+.vrow { display: grid; grid-template-columns: 86px minmax(0, 1fr) auto; column-gap: 12px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--line-2); }
+.vrow:first-child { border-top: 0; }
+.vrow .vw { font-family: var(--mono); font-size: 12px; color: var(--accent-2); white-space: nowrap; }
+.vrow .vn { font-family: var(--serif); font-size: 17px; line-height: 1.25; font-weight: 500; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.vrow .vk { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.vnone { padding: 8px 0 10px; font-size: 14.5px; color: var(--muted); }
+.vmore { align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: none; display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-2); }
+/* Trabajan hoy */
+.staff { gap: 0; padding: 2px 16px 14px; }
+.staff .ticks { grid-template-columns: minmax(0, 1fr); padding-top: 10px; }
+.staff .ticks > span:first-child { display: none; }
+.staff .ticks b { display: none; }
+.staff .ticks .track { grid-area: auto; height: 14px; background: none; }
+.staff .ticks i { font-size: 10.5px; }
+.staff .grp { margin-top: 10px; padding: 14px 0 2px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .1em; color: var(--accent-2); }
+.staff .ticks + .grp { margin-top: 0; padding-top: 12px; border-top: 0; }
+.staff .row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "n h" "t t"; gap: 6px 10px; align-items: baseline; padding: 9px 0 7px; }
+.staff .n { grid-area: n; font-family: var(--serif); font-size: 17.5px; font-weight: 500; color: var(--muted); }
+.staff .n em { margin-left: 8px; font-family: var(--font); font-style: normal; font-size: 12.5px; color: var(--muted); }
+.staff .row.now .n { font-weight: 500; color: var(--ink); }
+.staff .row.now .n::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--accent-2); vertical-align: 2px; }
+.staff .hrs { grid-area: h; font-family: var(--mono); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.staff .row.now .hrs { color: var(--accent-2); }
+.staff .track { grid-area: t; height: 6px; border-radius: 3px; background: var(--line-2); overflow: visible; }
+.staff .bar { border: 0; border-radius: 3px; padding: 0; background: var(--accent-2); opacity: .34; color: inherit; }
+.staff .row.now .bar { background: linear-gradient(90deg, var(--accent-2), var(--accent)); opacity: 1; border: 0; }
+.staff .bar small { display: none; }
+.staff .bar.nodata { opacity: 1; background: none; }
+.staff .row[style*="--now"] .track::after { top: -4px; bottom: -4px; width: 2px; border-radius: 1px; background: var(--gold); }
+.staff .aus { padding-top: 12px; }
 </style>
 </head>
 <body>
@@ -876,8 +927,8 @@ details.neg .sum .t { font-size: 19.5px; line-height: 1.2; }
       <div class="bento" id="tablero">
         <button type="button" class="tile" id="tDia" data-go="pCentro:dHoy"></button>
         <div class="tile cut" id="tParte">
-          <div class="thead"><span class="lab" id="parteLab">Parte</span><span class="lab novn" id="parteNov"></span></div>
-          <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El parte llega por la mañana y se renueva varias veces al día.</p></div>
+          <div class="thead"><span class="lab" id="parteLab">Resumen del día</span></div>
+          <div class="parte" id="parte" aria-label="Parte del asistente"><p class="empty">El resumen llega por la mañana y se reescribe varias veces al día.</p></div>
           <button type="button" class="mas" id="parteMas" aria-expanded="false" hidden></button>
         </div>
         <button type="button" class="tile" id="tTorneo" data-go="pCentro:dOp" hidden></button>
@@ -895,7 +946,8 @@ details.neg .sum .t { font-size: 19.5px; line-height: 1.2; }
           <button type="button" class="tile" id="tTurnos" data-go="pCentro:dTurnos"></button>
         </div>
         <button type="button" class="tile" id="tVig" data-go="pCentro:dVig" hidden></button>
-        <button type="button" class="tile" id="tViene" data-go="pCentro:dViene"></button>
+        <div class="tile" id="tViene"></div>
+        <p class="novleg" id="parteNov" hidden></p>
       </div>
     </section>
 
@@ -945,6 +997,10 @@ details.neg .sum .t { font-size: 19.5px; line-height: 1.2; }
         <div id="biztot" hidden></div>
         <div class="tend" id="tend" hidden></div>
       </details>
+      <details class="neg" id="dOp">
+        <summary><div class="sum"><span class="t">Detalle de la operación</span><span class="s" id="opSub"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <div id="operacion" class="opgrid"></div>
+      </details>
       <details class="neg" id="dTurnos">
         <summary><div class="sum"><span class="t" id="turnosT">Trabajan hoy</span><span class="s" id="turnosS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
         <div class="staff" id="turnos"></div>
@@ -962,10 +1018,6 @@ details.neg .sum .t { font-size: 19.5px; line-height: 1.2; }
           <span class="lab">Últimos avisos</span>
           <ul class="fl" id="avList"></ul>
         </div>
-      </details>
-      <details class="neg" id="dOp">
-        <summary><div class="sum"><span class="t">Detalle de la operación</span><span class="s" id="opSub"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
-        <div id="operacion" class="opgrid"></div>
       </details>
       <details class="neg" id="dViene">
         <summary><div class="sum"><span class="t">Lo que viene</span><span class="s" id="vieneS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>

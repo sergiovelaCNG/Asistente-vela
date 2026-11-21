@@ -164,7 +164,7 @@
     const desde = b.at ? new Date(b.at).getTime() : 0;
     const cerrados = cng().filter((it) => it.estado === 'hecho' && it.hecho_at && new Date(it.hecho_at).getTime() > desde && it.tipo !== 'idea')
       .sort((x, y) => String(y.hecho_at).localeCompare(String(x.hecho_at)));
-    const despues = cerrados.length ? '<div class="since"><b>Desde este parte ya está resuelto</b><ul>' + cerrados.slice(0, 4).map((it) =>
+    const despues = cerrados.length ? '<div class="since"><b>Resuelto después de escribirlo</b><ul>' + cerrados.slice(0, 4).map((it) =>
       '<li>' + esc(it.titulo) + ' <span class="muted">· ' + (it.extra && it.extra.auto_cierre ? 'se cerró solo' : 'lo cerraste tú') + ' a las ' + hhmm(it.hecho_at) + '</span></li>').join('') +
       (cerrados.length > 4 ? '<li class="muted">y ' + (cerrados.length - 4) + ' más en «Hecho»</li>' : '') + '</ul></div>' : '';
     const pal = (s) => new Set(norm(s).replace(/[^a-z0-9& ]/g, ' ').split(/\s+/).filter((w) => w.length >= 5));
@@ -175,7 +175,7 @@
     const sinCambios = prev && !nuevas.length && state.briefingPrev.at;
     const cls = (l) => [cerrados.length && cerradoEn(l) ? 'done' : '', prev && nuevas.length && nuevas.length < lines.length && !prev.has(l) ? 'new' : ''].filter(Boolean).join(' ');
     el.innerHTML = lines.map((l) => { const c = cls(l); return '<p' + (c ? ' class="' + c + '"' : '') + '>' + esc(l) + '</p>'; }).join('') + despues + calmHtml() +
-      (at ? '<span class="when">Parte de ' + esc(at) + (sinCambios ? ' · sin cambios desde las ' + hhmm(state.briefingPrev.at) : nuevas.length && nuevas.length < lines.length ? ' · lo nuevo, con el número en azul' : '') + (cerrados.length ? '; lo de arriba puede estar ya resuelto' : '') + '</span>' : '');
+      (at ? '<span class="when">Resumen de ' + esc(at) + (sinCambios ? ' · sin cambios desde las ' + hhmm(state.briefingPrev.at) : nuevas.length && nuevas.length < lines.length ? ' · «nuevo» es lo que no estaba en el resumen anterior' : '') + (cerrados.length ? ' · lo tachado ya está resuelto' : '') + '</span>' : '');
   }
   // V4 · estado tranquilo: si no hay nada suyo (firma, tareas, encargos), una sola línea en vez de secciones vacías.
   function calmHtml() {
@@ -480,7 +480,7 @@
     const ages = [ag.vie ? '<span class="chip crit">' + ag.vie + ' de 3 d o más</span>' : '', ag.rec ? '<span class="chip flag">' + ag.rec + ' de 1-2 d</span>' : '', ag.hoy ? '<span class="chip">' + ag.hoy + ' de hoy</span>' : ''].join('');
     // V6.1: las pestañitas filtran la lista (por antigüedad o por bandeja); otra pulsación quita el filtro.
     if (state.eqFilter && !pend.some(eqMatch)) state.eqFilter = null;
-    const sum = (ag.vie ? fchip('crit', 'e:vie', ag.vie + ' de 3 d o más') : '') + (ag.rec ? fchip('flag', 'e:rec', ag.rec + ' de 1-2 d') : '') + (ag.hoy ? fchip('', 'e:hoy', ag.hoy + ' de hoy') : '') + Object.keys(porB).sort((a, b) => porB[b] - porB[a]).map((k) => fchip('plain', 'b:' + k, k + ' ' + porB[k])).join('') + (state.eqFilter && state.eqFilter.slice(0, 2) === 'a:' ? fchip('plain', state.eqFilter, 'Área: ' + state.eqFilter.slice(2) + ' ' + pend.filter(eqMatch).length) : '');
+    const sum = (ag.vie ? fchip('crit', 'e:vie', ag.vie + ' de 3 d o más') : '') + (ag.rec ? fchip('flag', 'e:rec', ag.rec + ' de 1-2 d') : '') + (ag.hoy ? fchip('', 'e:hoy', ag.hoy + ' de hoy') : '') + (() => { const m = modoAreas(); const por = {}; pend.forEach((p) => { const k = grupoDe(p, m); por[k] = (por[k] || 0) + 1; }); return Object.keys(por).sort((a, b) => por[b] - por[a] || a.localeCompare(b)).map((k) => fchip('plain', (m === 'area' ? 'a:' : 'b:') + k, k + ' ' + por[k])).join(''); })();
     state.eqPend = pend;
     const rows = pend.map((p, i) => {
       if (!eqMatch(p)) return '';
@@ -493,7 +493,7 @@
       const extra = /pasada|cerrar/i.test(p.estado || '') ? '<span>fecha pasada: responder o cerrar</span>' : '';
       return '<li><span class="age' + (d >= 7 ? ' hot' : d >= 3 ? ' warm' : '') + '">' + age + '</span><span class="asu">' + link + '</span>' +
         (p.enlace ? '<span class="eqbtns"><a class="mini go" href="' + esc(p.enlace) + '" target="_blank" rel="noopener">Abrir</a>' + pasar + '</span>' : '<span></span>') +
-        '<span class="sub"><span class="st ' + st.cls + '">' + esc(st.txt) + '</span><span>' + esc([p.area, p.bandeja].filter(Boolean).filter((x, i, l) => l.indexOf(x) === i).join(' · ')) + '</span>' + extra + '</span></li>';
+        '<span class="sub"><span class="st ' + st.cls + '">' + esc(st.txt) + '</span><span>' + esc(p.area ? p.area + (p.bandeja && p.bandeja !== p.area ? ' · bandeja ' + p.bandeja : '') : (p.bandeja || '')) + '</span>' + extra + '</span></li>';
     }).join('');
     const resHtml = res.length ? '<details class="res"><summary>' + res.length + (res.length === 1 ? ' resuelto' : ' resueltos') + ' desde el informe</summary><ul>' +
       res.map((x) => '<li><span class="t">' + (x.enlace ? '<a href="' + esc(x.enlace) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(x.asunto || '') + '</a>' : esc(x.asunto || '')) + '</span><span class="r">' + esc(x.quien || '') + '</span></li>').join('') + '</ul></details>' : '';
@@ -631,7 +631,7 @@
         const dentro = nowPct !== null && a !== null && b !== null && a <= nowMin && nowMin < b;
         const rol = p.rol ? String(p.rol).toLowerCase().replace(/\s+/g, ' ').trim() : '';
         const bar = a !== null && b !== null && b > a ? '<span class="bar" style="left:' + pct(a).toFixed(1) + '%;width:' + (pct(b) - pct(a)).toFixed(1) + '%"><small>' + esc(String(p.desde).replace(/^0/, '').replace(/:00$/, '') + '–' + String(p.hasta).replace(/^0/, '').replace(/:00$/, '')) + '</small></span>' : '<span class="bar nodata"><small>sin horario</small></span>';
-        html += '<div class="row' + (dentro ? ' now' : '') + '"' + nowStyle + '><span class="n" title="' + esc(p.nombre + (rol ? ' · ' + rol : '')) + '">' + esc(label(p)) + '</span><span class="track">' + bar + '</span></div>';
+        html += '<div class="row' + (dentro ? ' now' : '') + '"' + nowStyle + '><span class="n" title="' + esc(p.nombre) + '">' + esc(label(p)) + (rol ? '<em>' + esc(rol) + '</em>' : '') + '</span><span class="hrs">' + (a !== null && b !== null ? esc(p.desde + ' – ' + p.hasta) : 'sin horario') + '</span><span class="track">' + bar + '</span></div>';
       });
     });
     html += '<div class="aus">' + (aus.length ? 'Ausentes: ' + esc(aus.map(first).join(' · ')) + '. ' : '') + 'Cuadrante de GolfManager, no fichaje real.</div>';
@@ -1242,6 +1242,33 @@
     Object.keys(blq).forEach((dep) => (Array.isArray(blq[dep]) ? blq[dep] : []).forEach((p) => { if (p.ausente) { aus++; return; } total++; const a = toMin(p.desde), b = toMin(p.hasta); if (a !== null && b !== null && a <= now && now < b) dentro++; }));
     return { noche, total, dentro, aus };
   }
+  // V6.2 · «Lo que viene» en Inicio: tres pestañas (mañana, 7 días, torneos en 14 días) y hasta cuatro filas.
+  function vieneLista(tab) {
+    const hoy = ymd(today()); const out = [];
+    const orden = (a, b) => (a.todo_el_dia ? '0' : '1' + a.inicio).localeCompare(b.todo_el_dia ? '0' : '1' + b.inicio);
+    if (tab === 'tor') {
+      const fin = ymd(addDays(today(), 14)); const seen = {};
+      state.events.filter(isTorneo).forEach((e) => { const a = e.dia, b = e.dia_fin || e.dia; if (b < hoy || a > fin) return; const k = a + e.titulo; if (seen[k]) return; seen[k] = 1; const tn = torneoName(e);
+        out.push({ o: a, d: a <= hoy ? 'hoy' : a === b ? fmtShort(a) : parseYmd(a).getDate() + '–' + parseYmd(b).getDate() + ' ' + MES3[parseYmd(b).getMonth()], n: tn.nombre, k: CODIGOS[tn.codigo] || '' }); });
+      return out.sort((x, y) => x.o.localeCompare(y.o));
+    }
+    const n = tab === 'man' ? 1 : 7;
+    for (let i = 1; i <= n; i++) { const ds = ymd(addDays(today(), i));
+      eventsOn(ds).filter((e) => !isReserva(e)).sort(orden).forEach((e) => { const t = isTorneo(e); const hora = e.todo_el_dia || !e.inicio ? '' : hhmm(e.inicio);
+        out.push(tab === 'man' ? { d: hora || 'todo el día', n: t ? torneoName(e).nombre : evName(e), k: t ? 'torneo' : '' } : { d: i === 1 ? 'mañana' : fmtShort(ds), n: t ? torneoName(e).nombre : evName(e), k: t ? 'torneo' : hora }); }); }
+    return out;
+  }
+  function renderViene(v) {
+    const L = { man: vieneLista('man'), sem: vieneLista('sem'), tor: vieneLista('tor') };
+    if (!state.vieneTab) state.vieneTab = L.man.length ? 'man' : L.sem.length ? 'sem' : L.tor.length ? 'tor' : 'man';
+    const tab = state.vieneTab; const rows = L[tab]; const MAX = 4;
+    const bt = (k, t) => '<button type="button" role="tab" data-vt="' + k + '" aria-selected="' + (tab === k) + '">' + t + '<b>' + L[k].length + '</b></button>';
+    const vacio = { man: 'Nada en la agenda para mañana.', sem: 'Nada en la agenda para los próximos 7 días.', tor: 'Ningún torneo en los próximos 14 días.' }[tab];
+    setTile('tViene', lab('Lo que viene') + '<span class="vtabs" role="tablist">' + bt('man', 'Mañana') + bt('sem', '7 días') + bt('tor', 'Torneos') + '</span>' +
+      (rows.length ? '<span class="vlist">' + rows.slice(0, MAX).map((r) => '<span class="vrow"><span class="vw">' + esc(r.d) + '</span><span class="vn">' + esc(r.n) + '</span><span class="vk">' + esc(r.k || '') + '</span></span>').join('') + '</span>' : '<span class="vnone">' + vacio + '</span>') +
+      '<button type="button" class="vmore" data-go="pCentro:dViene">' + (rows.length > MAX ? 'Y ' + (rows.length - MAX) + ' más · ver todo' : 'Ver todo') + svg(I_GO, 14) + '</button>', { sig: v.tor + '#' + v.prox });
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-vt]'); if (!b) return; state.vieneTab = b.dataset.vt; renderInicio(); });
   function vieneTxt() {
     const hoy = ymd(today()), fin = ymd(addDays(today(), 14));
     const tor = new Set(state.events.filter((e) => isTorneo(e) && (e.dia_fin || e.dia) >= hoy && e.dia <= fin).map((e) => e.dia + e.titulo)).size;
@@ -1271,7 +1298,7 @@
       { sig: reun.map((e) => e.id + (e.inicio || '')).join('|') + '#' + cl.size });
 
     // Parte
-    const b = state.briefing; const pl = $('#parteLab'); if (pl) pl.textContent = b && b.at ? 'Parte · ' + (localDay(b.at) === hoy ? '' : DIAS3[new Date(b.at).getDay()] + ' ') + hhmm(b.at) : 'Parte';
+    const b = state.briefing; const pl = $('#parteLab'); if (pl) pl.textContent = b && b.at ? 'Resumen del día · escrito ' + (localDay(b.at) === hoy ? 'a las ' : 'el ' + DIAS3[new Date(b.at).getDay()] + ' a las ') + hhmm(b.at) : 'Resumen del día';
 
     // Modo torneo: el día de torneo su casilla sube bajo el parte, a todo el ancho
     const tors = torneoHoy(); const t0 = tors[0];
@@ -1333,11 +1360,11 @@
 
     // Lo que viene
     const v = vieneTxt();
-    setTile('tViene', lab('Lo que viene') + '<span class="go">' + sub(v.txt) + svg(I_GO, 16) + '</span>', { sig: v.tor + '#' + v.prox });
+    renderViene(v);
 
     // Cuántas casillas han cambiado desde la última visita
     const nNov = document.querySelectorAll('#tablero .tile.nw').length; const pn = $('#parteNov');
-    if (pn) pn.textContent = nNov && novBase && novBase.at ? plural(nNov, 'novedad', 'novedades') + ' desde ' + (localDay(new Date(novBase.at).toISOString()) === hoy ? '' : 'el ' + fmtShort(localDay(new Date(novBase.at).toISOString())) + ' ') + hhmm(new Date(novBase.at).toISOString()) : '';
+    if (pn) pn.hidden = !(nNov && novBase && novBase.at); if (pn) pn.textContent = nNov && novBase && novBase.at ? 'El punto azul marca lo que ha cambiado desde tu última visita, ' + (localDay(new Date(novBase.at).toISOString()) === hoy ? '' : 'el ' + fmtShort(localDay(new Date(novBase.at).toISOString())) + ' ') + hhmm(new Date(novBase.at).toISOString()) : '';
 
     // Barra inferior: contadores
     const badge = (id, n, crit) => { const el = document.getElementById(id); if (!el) return; el.hidden = !n; el.textContent = n || ''; el.classList.toggle('crit', !!crit); };
