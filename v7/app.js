@@ -1415,10 +1415,10 @@
       att.push({ k: 'buzon', tone: viejo >= 7 ? 'crit' : 'flag', icon: 'mail', cat: 'Buzón del equipo', pill: diasTxt(viejo), title: ar ? ar.nombre + ': ' + ar.ahora + ' esperando' : plural(pend.length, 'cliente esperando', 'clientes esperando'),
         meta: plural(pend.length, 'cliente esperando', 'clientes esperando') + ' en total' + (stB ? ' · ' + stB : ''), act: 'Ver el buzón', go: 'pClientes:dEq', sig: pend.map((p) => p.enlace || p.asunto || '').sort().join('|') });
     }
-    // Asuntos de dinero: excepción cuando alguno lleva 3 días o más sin respuesta
+    // Asuntos de dinero (P134: solo los que siguen sin contestar): excepción cuando alguno lleva 3 días o más esperando
     const dVie = (DB.lista || []).filter((x) => typeof x.dias_sin_respuesta === 'number' && x.dias_sin_respuesta >= 3).length;
     const dinCard = din > 0 && dVie > 0;
-    if (dinCard) att.push({ k: 'din', tone: 'flag', icon: 'euro', cat: 'Dinero', pill: plural(din, 'abierto', 'abiertos'), title: 'Asuntos de dinero', meta: dVie + (dVie === 1 ? ' lleva' : ' llevan') + ' 3 días o más sin respuesta', act: 'Ver los asuntos', go: 'pClientes:dDin', sig: din + '#' + dVie });
+    if (dinCard) att.push({ k: 'din', tone: 'flag', icon: 'euro', cat: 'Dinero', pill: din + ' sin contestar', title: 'Asuntos de dinero', meta: dVie + (dVie === 1 ? ' lleva' : ' llevan') + ' 3 días o más esperando respuesta', act: 'Ver los asuntos', go: 'pClientes:dDin', sig: din + '#' + dVie });
 
     const ORD = { crit: 0, flag: 1, n: 2 }; att.sort((p, q) => ORD[p.tone] - ORD[q.tone]);
     Object.keys(novNow).forEach((k) => { if (k.indexOf('att:') === 0) delete novNow[k]; }); novNow.v = '7';
@@ -1440,7 +1440,8 @@
     // Lo que no es excepción, en fichas: no se pierde el dato y no grita
     const ch = [];
     if (pend !== null && !buzonCard) ch.push(['Buzón del equipo', pend.length ? pend.length + ' esperando' : 'al día', 'pClientes:dEq']);
-    if (din !== null && !dinCard) ch.push(['Dinero', din ? plural(din, 'abierto', 'abiertos') : 'nada abierto', 'pClientes:dDin']);
+    if (din !== null && !dinCard) ch.push(['Dinero', din ? din + ' sin contestar' : 'nada sin contestar', 'pClientes:dDin']);
+    else if (din === null && DB.sinVerif !== null) ch.push(['Dinero', DB.sinVerif + ' sin comprobar', 'pClientes:dDin']);
     if (tareas.length) ch.push(['Tareas', String(tareas.length), 'pTuyo:dTareas']);
     const nEnc = encargosList().length; if (nEnc) ch.push(['Delegado', String(nEnc), 'pTuyo:dDel']);
     const ac = $('#attChips'); if (ac) ac.innerHTML = ch.map((x) => '<button type="button" class="achip" data-go="' + x[2] + '">' + esc(x[0]) + '<b>' + esc(x[1]) + '</b></button>').join('');
@@ -1473,18 +1474,27 @@
     return x.enlace && /^https:\/\//i.test(x.enlace) ? '<a class="crow' + (hot ? ' hot' : '') + '" href="' + esc(x.enlace) + '" target="_blank" rel="noopener">' + inner + '<span class="go">' + svg(I_GO, 18) + '</span></a>'
       : '<div class="crow' + (hot ? ' hot' : '') + '">' + inner + '<span></span></div>';
   }
+  // P134 (25/11/2026 · Sr. Vela): un asunto de dinero solo cuenta como abierto si su hilo sigue pendiente de verdad, es decir, el
+  // último mensaje humano es de quien escribe al club y nadie lo ha contestado. Lo ya contestado o cerrado se lista aparte, sin contar
+  // ni marcarse. Lo que llega sin estado del hilo se rotula «sin comprobar» y tampoco cuenta. Sin lista, la cifra del informe no se da por buena.
+  const dinEstado = (x) => typeof x.dias_sin_respuesta === 'number' || /^(sin respuesta|esperando 2|revisar)/i.test(String(x.estado_hilo || '')) ? 'pend' : x.estado_hilo ? 'resp' : 'nc';
   function cliBloque(c, k) {
-    const lista = c && Array.isArray(c[k]) ? c[k] : null; const m = c && c[k + '_meta'] && typeof c[k + '_meta'] === 'object' ? c[k + '_meta'] : null;
-    const cuenta = c ? (k === 'reclamaciones' ? c.reclamaciones_sin_respuesta : c.dinero_pendiente) : null; const n = lista ? lista.length : typeof cuenta === 'number' ? cuenta : cuenta != null && isFinite(Number(cuenta)) ? Number(cuenta) : null;
+    const m = c && c[k + '_meta'] && typeof c[k + '_meta'] === 'object' ? c[k + '_meta'] : null; const esDin = k === 'dinero';
+    // Desde D2 V1.7.0 la lista `dinero` trae solo lo que cuenta y lo ya contestado llega en dinero_meta.otros; antes venía todo junto.
+    const todo = c && Array.isArray(c[k]) ? (esDin && m && Array.isArray(m.otros) ? c[k].concat(m.otros) : c[k]) : null;
+    const lista = todo && esDin ? todo.filter((x) => dinEstado(x) === 'pend') : todo;
+    const resp = todo && esDin ? todo.filter((x) => dinEstado(x) === 'resp') : []; const nc = todo && esDin ? todo.filter((x) => dinEstado(x) === 'nc') : [];
+    const cuenta0 = c ? (k === 'reclamaciones' ? c.reclamaciones_sin_respuesta : c.dinero_pendiente) : null; const cuenta = typeof cuenta0 === 'number' ? cuenta0 : cuenta0 != null && isFinite(Number(cuenta0)) ? Number(cuenta0) : null;
+    const n = lista ? lista.length : esDin ? null : cuenta; const sinVerif = !todo && esDin ? cuenta : null;
     const hoy = ymd(today()); const leido = m && m.leido_at ? (localDay(m.leido_at) === hoy ? 'leído a las ' + hhmm(m.leido_at) : 'leído el ' + fmtShort(localDay(m.leido_at)) + ' ' + hhmm(m.leido_at)) : '';
-    return { lista, n, leido, sinDetalle: !lista, motivo: m && m.disponible === false ? (m.motivo || 'no disponible') : '', foto: c && c.informe && typeof c.informe === 'object' ? c.informe : null };
+    return { lista, n, resp, nc, sinVerif, leido, sinDetalle: !lista, motivo: m && m.disponible === false ? (m.motivo || 'no disponible') : '', foto: c && c.informe && typeof c.informe === 'object' ? c.informe : null };
   }
   function renderClientes() {
     const hs = syncHoy(); const c = hs && hs.clientes; const stI = informeStale();
     const R = cliBloque(c, 'reclamaciones'), D = cliBloque(c, 'dinero'); const rec = R.n, din = D.n;
     const r = state.revision; const pend = r && Array.isArray(r.pendientes_equipo) ? r.pendientes_equipo : null; const res = r && Array.isArray(r.resueltos_equipo) ? r.resueltos_equipo : null;
     const cel = (v, t, crit) => '<div><b' + (crit ? ' class="crit"' : '') + '>' + (v === null ? '—' : esc(String(v))) + '</b><span>' + esc(t) + '</span></div>';
-    $('#cliPulse').innerHTML = cel(rec, rec === 1 ? 'reclamación' : 'reclamaciones', rec > 0) + cel(din, din === 1 ? 'asunto de dinero' : 'asuntos de dinero') + cel(pend ? pend.length : null, 'esperando al equipo') + cel(res ? res.length : null, res && res.length === 1 ? 'resuelto hoy' : 'resueltos hoy');
+    $('#cliPulse').innerHTML = cel(rec, rec === 1 ? 'reclamación' : 'reclamaciones', rec > 0) + cel(din, 'de dinero sin contestar') + cel(pend ? pend.length : null, 'esperando al equipo') + cel(res ? res.length : null, res && res.length === 1 ? 'resuelto hoy' : 'resueltos hoy');
     const hora = hs && hs.informe_hora ? 'informe de las ' + hs.informe_hora : '';
     const sinDet = (B) => B.motivo ? 'Sin detalle ahora (' + B.motivo + ').' : 'El detalle todavía no ha llegado; se actualiza con cada revisión del buzón.';
     $('#reclS').textContent = rec === null ? (stI || 'sin dato') : (rec ? plural(rec, 'sin respuesta', 'sin respuesta') : 'ninguna sin respuesta') + (R.leido || hora ? ' · ' + (R.leido || hora) : '');
@@ -1493,13 +1503,16 @@
       : rec === 0 ? '<p class="cnote">Ninguna reclamación sin respuesta.</p>'
       : '<p class="cnote"><b>' + esc(rec === 1 ? '1 reclamación sin respuesta.' : rec + ' reclamaciones sin respuesta.') + '</b> ' + esc(sinDet(R)) + '</p>';
     const enRec = {}; (R.lista || []).forEach((x) => { if (x.thread_id) enRec[String(x.thread_id).toLowerCase()] = 1; });
-    const foto = D.foto && typeof D.foto.dinero_pendiente === 'number' && D.lista && D.foto.dinero_pendiente !== din ? D.foto.dinero_pendiente + ' en el informe' + (D.foto.hora ? ' de las ' + D.foto.hora : '') : '';
-    $('#dinS').textContent = din === null ? (stI || 'sin dato') : din ? [plural(din, 'abierto', 'abiertos'), foto, D.leido].filter(Boolean).join(' · ') : 'ninguno abierto' + (D.leido ? ' · ' + D.leido : '');
-    const pie = '<p class="cnote">Son asuntos de correo abiertos donde hay dinero de por medio, no importes pendientes de pago. ' + (c && c.dinero_tipos ? esc(c.dinero_tipos) + '. ' : '') + (c && c.devoluciones_7d ? 'Devoluciones en 7 días: ' + esc(c.devoluciones_7d) + '.' : '') + '</p>';
-    $('#dinList').innerHTML = D.lista && D.lista.length ? '<div class="cbody">' + D.lista.slice().sort((a, b) => (b.dias_sin_respuesta === null || b.dias_sin_respuesta === undefined ? -1 : b.dias_sin_respuesta) - (a.dias_sin_respuesta === null || a.dias_sin_respuesta === undefined ? -1 : a.dias_sin_respuesta) || (b.dias_abierta || 0) - (a.dias_abierta || 0)).map((x) => casoRow(x, 'din', x.thread_id && enRec[String(x.thread_id).toLowerCase()])).join('') + '</div>' + pie
-      : din === null ? '<p class="cnote">' + esc(L0(stI, 'Hoy no hay dato de asuntos de dinero.')) + '</p>'
-      : din === 0 ? '<p class="cnote">Ningún asunto de dinero abierto.' + (c && c.devoluciones_7d ? '<br>Devoluciones en 7 días: ' + esc(c.devoluciones_7d) + '.' : '') + '</p>'
-      : '<p class="cnote"><b>' + esc(plural(din, 'asunto de dinero abierto', 'asuntos de dinero abiertos')) + '.</b> ' + esc(sinDet(D)) + '</p>' + pie;
+    const ordD = (a, b) => (b.dias_sin_respuesta === null || b.dias_sin_respuesta === undefined ? -1 : b.dias_sin_respuesta) - (a.dias_sin_respuesta === null || a.dias_sin_respuesta === undefined ? -1 : a.dias_sin_respuesta) || (b.dias_abierta || 0) - (a.dias_abierta || 0);
+    const filaD = (x) => casoRow(x, 'din', x.thread_id && enRec[String(x.thread_id).toLowerCase()]);
+    $('#dinS').textContent = din === null ? (D.sinVerif !== null ? D.sinVerif + ' según el informe · sin comprobar' : (stI || 'sin dato'))
+      : [din ? din + ' sin contestar' : 'ninguno sin contestar', D.resp.length ? plural(D.resp.length, 'contestado', 'contestados') : '', D.nc.length ? D.nc.length + ' sin comprobar' : '', D.leido].filter(Boolean).join(' · ');
+    const pie = '<p class="cnote">Solo cuenta lo que sigue sin contestar: el último mensaje no es del club. Son asuntos de correo, no importes pendientes de pago, y un correo contestado no prueba que la devolución esté hecha.' + (c && c.devoluciones_7d ? ' Devoluciones en 7 días: ' + esc(c.devoluciones_7d) + '.' : '') + '</p>';
+    const masD = (l, t) => l.length ? '<details class="cmas"><summary>' + esc(t) + '</summary><div class="cbody">' + l.slice().sort(ordD).map(filaD).join('') + '</div></details>' : '';
+    $('#dinList').innerHTML = D.lista ? (D.lista.length ? '<div class="cbody">' + D.lista.slice().sort(ordD).map(filaD).join('') + '</div>' : '<p class="cnote">Ningún asunto de dinero sin contestar.</p>') +
+        masD(D.resp, plural(D.resp.length, 'contestado, a la espera', 'contestados, a la espera')) + masD(D.nc, D.nc.length + ' sin comprobar: no consta el estado del hilo') + pie
+      : D.sinVerif !== null ? '<p class="cnote"><b>' + esc(D.sinVerif + ' según el informe de la mañana.') + '</b> Sin comprobar con el correo. ' + esc(sinDet(D)) + '</p>'
+      : '<p class="cnote">' + esc(L0(stI, 'Hoy no hay dato de asuntos de dinero.')) + '</p>';
     defaultOpen('dRecl', rec > 0); defaultOpen('dDin', din > 0);
   }
   function L0(stale, otro) { return stale ? stale.charAt(0).toUpperCase() + stale.slice(1) + '.' : otro; }

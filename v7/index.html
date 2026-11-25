@@ -991,6 +991,13 @@ details.neg .sum .t { font-size: 19.5px; line-height: 1.2; }
 #parte > p:not(.calm):not(.empty):first-child { font-size: 17.5px; line-height: 1.3; }
 #tParte.cut #parte > p:not(.calm):not(.empty) { display: none; }
 #tParte.cut #parte > p:not(.calm):not(.empty):first-child { display: block; -webkit-line-clamp: unset; overflow: visible; }
+/* P134 · asuntos de dinero ya contestados: aparte, recogidos y sin contar */
+.cmas { border-top: 1px solid var(--line-2); }
+.cmas > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 0 16px; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.cmas > summary::-webkit-details-marker { display: none; }
+.cmas > summary::after { content: "+"; font-family: var(--mono); font-size: 15px; }
+.cmas[open] > summary::after { content: "\2212"; }
+.cmas .crow .age { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -1131,7 +1138,7 @@ details.neg .sum .t { font-size: 19.5px; line-height: 1.2; }
         <div id="reclList"></div>
       </details>
       <details class="neg" id="dDin" open>
-        <summary><div class="sum"><span class="t">Asuntos de dinero abiertos</span><span class="s" id="dinS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
+        <summary><div class="sum"><span class="t">Asuntos de dinero</span><span class="s" id="dinS"></span><span class="chev"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div></summary>
         <div id="dinList"></div>
       </details>
       <details class="neg" id="dAreas" open hidden>
