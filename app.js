@@ -43,7 +43,39 @@
   const CODIGOS = { P: 'propio', F: 'federativo', PO: 'pool', PR: 'privado', PB: 'privado benéfico', A: 'abierto', AB: 'abierto benéfico', B: 'benéfico' };
   const PED = { pedido: 'pedido', confirmado: 'confirmado', enviado: 'en camino', entregado: 'entregado', incidencia: 'incidencia' };
   const KIND = { tarea: 'Para hacer', seguimiento: 'Encargo', hablar: 'Hablar con', idea: 'Idea', vencimiento: 'Vencimiento', pedido: 'Pedido' };
-  const EMAIL = 'sergio.vela@cngolf.es';
+  // P144 (26/11/2026) · los correos no van en el código: las marcas __CORREO_n__ se resuelven con la fila «correos_app» de Supabase
+  // (función correos_app, solo para tu usuario). Se guardan en este dispositivo para poder abrir sin red.
+  const CORREOS_K = 'dp6.correos';
+  let CORREOS = {}; try { CORREOS = JSON.parse(localStorage.getItem(CORREOS_K) || '{}') || {}; } catch (e) { CORREOS = {}; }
+  const MARCA_RE = /__CORREO_\d+__/g;
+  const correo = (m) => (CORREOS && typeof CORREOS[m] === 'string' ? CORREOS[m] : '');
+  // Cada campo guarda su plantilla con la marca (data-c*) y se vuelve a pintar cuando llegan o cambian los correos.
+  function aplicarCorreos(root) {
+    const pon = (el, k, v) => { if (el.dataset[k] === undefined && /__CORREO_\d+__/.test(v || '')) el.dataset[k] = v; return el.dataset[k]; };
+    (root || document).querySelectorAll('option, input').forEach((el) => {
+      if (el.tagName === 'OPTION') {
+        const v = pon(el, 'cv', el.value); if (v !== undefined) el.value = v.replace(MARCA_RE, (m) => correo(m) || m);
+        const t = pon(el, 'ct', el.textContent); if (t !== undefined) el.textContent = t.replace(MARCA_RE, (m) => correo(m) || 'correo del equipo');
+      } else {
+        const v = pon(el, 'cv', el.getAttribute('value') || ''); if (v !== undefined && (!el.value || /__CORREO_\d+__/.test(el.value) || el.dataset.cvAuto === '1')) { el.value = v.replace(MARCA_RE, (m) => correo(m)); el.dataset.cvAuto = '1'; }
+        const ph = pon(el, 'cp', el.placeholder || ''); if (ph !== undefined) el.placeholder = ph.replace(MARCA_RE, (m) => correo(m) || 'nombre@cngolf.es');
+      }
+    });
+  }
+  async function cargarCorreos() {
+    try {
+      const { data, error } = await sb.rpc('correos_app');
+      if (error || !data || typeof data !== 'object') return false;
+      CORREOS = data; try { localStorage.setItem(CORREOS_K, JSON.stringify(data)); } catch (e) {}
+      aplicarCorreos(document); return true;
+    } catch (e) { return false; }
+  }
+  async function esSergio(session) {
+    const u = session && session.user; if (!u) return false;
+    if (correo('__CORREO_1__') && u.email === correo('__CORREO_1__')) return true;
+    try { const { data, error } = await sb.rpc('es_sergio'); return !error && data === true; } catch (e) { return false; }
+  }
+  aplicarCorreos(document);
   // V6 · incidencia del día: un asunto marcado en `extra`; vive solo en Centro › Incidencias.
   const isInc = (it) => !!(it && it.extra && it.extra.incidencia);
 
@@ -290,7 +322,7 @@
       tl.innerHTML = evs.length ? evs.map((e) => {
         const k = evKind(e); const fin = e.fin ? new Date(e.fin) : null; const ini = e.inicio ? new Date(e.inicio) : null;
         const past = !e.todo_el_dia && fin && fin <= now; const cur = !e.todo_el_dia && ini && fin && ini <= now && now < fin;
-        const att = (e.asistentes || []).filter((a) => a.email !== 'sergio.vela@cngolf.es').map((a) => (a.nombre || String(a.email || '').split('@')[0]).split(' ')[0]).filter(Boolean);
+        const att = (e.asistentes || []).filter((a) => a.email !== correo('__CORREO_1__')).map((a) => (a.nombre || String(a.email || '').split('@')[0]).split(' ')[0]).filter(Boolean);
         const name = evName(e);
         const link = e.enlace ? '<a href="' + esc(e.enlace) + '" target="_blank" rel="noopener">' + esc(name) + '</a>' : esc(name);
         const lines = [];
@@ -322,18 +354,76 @@
         return '<div class="ev"><span class="t">' + esc(timeRange(e)) + '</span><span class="s">' + esc(evName(e)) + (pr && pr.texto ? '<small>' + esc(pr.texto) + '</small>' : '') + '</span><span class="k ' + k.cls + '">' + k.txt + '</span></div>'; }).join('') + '</div>';
     }).join('') + '</div>' : '';
   }
+  // P144 (26/11/2026 · Sr. Vela: «si yo reenvío un correo al equipo… debería aparecer… y luego si lo han contestado o no»).
+  // Los reenvíos llegan de n8n D2 → despacho-equipo como encargos con extra.encargo.via = 'gmail' y su estado. Fichas con recuento
+  // que filtran (sin respuesta · bloqueado abiertos; contestado · resuelto sin correo · cerrado, los cerrados solos de 7 días)
+  // y filtro por área y por destinatario. Sin filtros, la lista es la de siempre.
+  const DEL_EST = [['sin_respuesta', 'Sin respuesta'], ['bloqueado', 'Bloqueado'], ['contestado', 'Contestado'], ['resuelto_sin_correo', 'Resuelto sin correo'], ['cerrado', 'Cerrado']];
+  const DEL_ABIERTO = { sin_respuesta: 1, bloqueado: 1 };
+  state.delFx = state.delFx || { est: '', area: '', para: '' };
+  const encOf = (it) => (it && it.extra && it.extra.encargo) || null;
+  function delEstado(it) {
+    const e = encOf(it) || {};
+    if (open(it)) return e.estado === 'bloqueado' ? 'bloqueado' : 'sin_respuesta';
+    if (it.estado !== 'hecho' || !(it.extra && it.extra.auto_cierre)) return '';
+    return e.estado === 'resuelto_sin_correo' || e.estado === 'cerrado' ? e.estado : 'contestado';
+  }
+  const delArea = (it) => { const e = encOf(it) || {}; return String(e.area || e.bandeja || '').trim() || 'Sin área'; };
+  const delPara = (it) => { const e = encOf(it) || {}; return String(e.nombre || it.persona || '').trim() || 'Sin asignar'; };
+  function delUniverso() {
+    const desde = ymd(addDays(today(), -7));
+    return cng().filter((it) => it.tipo === 'seguimiento' && (open(it) || (delEstado(it) && localDay(it.hecho_at || it.updated_at) >= desde)));
+  }
+  function delFxHtml(uni) {
+    const fx = state.delFx;
+    const base = uni.filter((it) => (!fx.area || delArea(it) === fx.area) && (!fx.para || delPara(it) === fx.para));
+    const n = {}; base.forEach((it) => { const s = delEstado(it); n[s] = (n[s] || 0) + 1; });
+    const fichas = DEL_EST.filter(([k]) => n[k] || fx.est === k || k === 'sin_respuesta' || k === 'contestado')
+      .map(([k, t]) => '<button type="button" class="dfx' + (DEL_ABIERTO[k] ? ' ab' : '') + (k === 'bloqueado' && n[k] ? ' bl' : '') + '" data-fx="est" data-v="' + k + '" aria-pressed="' + (fx.est === k) + '">' + esc(t) + ' <b>' + (n[k] || 0) + '</b></button>').join('');
+    const sel = (campo, fn, todos) => {
+      const vals = [...new Set(uni.map(fn))].sort((a, b) => a.localeCompare(b, 'es'));
+      if (vals.length < 2 && !fx[campo]) return '';
+      return '<select class="dsel" data-fx="' + campo + '" aria-label="' + todos + '"><option value="">' + todos + '</option>' + vals.map((v) => '<option value="' + esc(v) + '"' + (fx[campo] === v ? ' selected' : '') + '>' + esc(v) + '</option>').join('') + '</select>';
+    };
+    const filtros = sel('area', delArea, 'Todas las áreas') + sel('para', delPara, 'Todos los destinatarios');
+    const quitar = fx.est || fx.area || fx.para ? '<button type="button" class="mini" data-fx="limpiar">Quitar filtros</button>' : '';
+    return '<div class="delfx"><div class="dfxs">' + fichas + '</div>' + (filtros || quitar ? '<div class="dsels">' + filtros + quitar + '</div>' : '') + '</div>';
+  }
+  function delResueltoHtml(it) {
+    const ac = (it.extra && it.extra.auto_cierre) || {}; const e = encOf(it) || {};
+    const st = { contestado: 'contestado', resuelto_sin_correo: 'sin correo', cerrado: 'cerrado' }[delEstado(it)] || 'resuelto';
+    return '<div class="del res" data-id="' + esc(it.id) + '"><span class="okm" aria-hidden="true">✓</span>' +
+      '<div><span class="who">' + esc(delPara(it)) + (e.area ? ' · ' + esc(e.area) : '') + '</span><p class="what">' + esc(it.titulo) + '</p>' +
+      (ac.motivo ? '<p class="note">' + esc(ac.motivo.charAt(0).toUpperCase() + ac.motivo.slice(1)) + '.</p>' : '') + '</div>' +
+      '<span class="state done">' + esc(st) + ' · ' + esc(ago(it.hecho_at || it.updated_at)) + '</span>' +
+      '<div class="acts">' + (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Correo</a>' : '') +
+      '<button class="mini" data-action="reopen">Reabrir</button></div></div>';
+  }
   function renderDelegado() {
+    const fx = state.delFx; const uni = delUniverso(); const fxHtml = delFxHtml(uni);
+    const filtra = (it) => (!fx.area || delArea(it) === fx.area) && (!fx.para || delPara(it) === fx.para);
+    if (fx.est && !DEL_ABIERTO[fx.est]) {
+      const res = uni.filter((it) => !open(it) && delEstado(it) === fx.est && filtra(it))
+        .sort((a, b) => String(b.hecho_at || b.updated_at).localeCompare(String(a.hecho_at || a.updated_at)));
+      $('#delN').textContent = plural(res.length, 'resuelto', 'resueltos') + ' en 7 días';
+      defaultOpen('dDel', true);
+      $('#delegado').innerHTML = fxHtml + (res.length ? res.map(delResueltoHtml).join('') : '<p class="empty-s">Nada en los últimos 7 días con este filtro.</p>');
+      return;
+    }
     const enF = new Set(vencidosEnc().map((x) => x.id));
-    const list = cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido') && !enF.has(it.id)).sort((a, b) => urgency(a) - urgency(b));
+    const conFx = !!(fx.est || fx.area || fx.para);
+    const list = cng().filter((it) => open(it) && (it.tipo === 'seguimiento' || it.tipo === 'pedido') && (conFx || !enF.has(it.id)))
+      .filter((it) => !conFx || (it.tipo === 'seguimiento' && filtra(it) && (!fx.est || delEstado(it) === fx.est))).sort((a, b) => urgency(a) - urgency(b));
     const venc = list.filter((it) => it.tipo !== 'pedido' && daysUntil(it.fecha_limite) !== null && daysUntil(it.fecha_limite) <= 0).length; const ped = list.filter((it) => it.tipo === 'pedido').length;
-    $('#delN').textContent = list.length ? [(list.length - ped) + (list.length - ped === 1 ? ' encargo' : ' encargos'), venc ? venc + (venc === 1 ? ' vencido' : ' vencidos') : '', ped ? ped + (ped === 1 ? ' pedido' : ' pedidos') : '', enF.size ? enF.size + ' más en «A tu firma»' : ''].filter(Boolean).join(' · ') : enF.size ? plural(enF.size, 'encargo vencido', 'encargos vencidos') + ', en «A tu firma»' : 'no esperas nada de nadie';
-    defaultOpen('dDel', list.length > 0);
-    $('#delegado').innerHTML = list.length ? list.map((it) => {
-      const who = it.tipo === 'pedido' ? (it.proveedor || 'Proveedor') + (it.persona ? ' · ' + it.persona : '') : (it.persona || 'Sin asignar');
+    $('#delN').textContent = list.length ? [(list.length - ped) + (list.length - ped === 1 ? ' encargo' : ' encargos'), venc ? venc + (venc === 1 ? ' vencido' : ' vencidos') : '', ped ? ped + (ped === 1 ? ' pedido' : ' pedidos') : '', !conFx && enF.size ? enF.size + ' más en «A tu firma»' : ''].filter(Boolean).join(' · ') : enF.size ? plural(enF.size, 'encargo vencido', 'encargos vencidos') + ', en «A tu firma»' : 'no esperas nada de nadie';
+    defaultOpen('dDel', list.length > 0 || conFx);
+    $('#delegado').innerHTML = fxHtml + (list.length ? list.map((it) => {
+      const enc = encOf(it);
+      const who = it.tipo === 'pedido' ? (it.proveedor || 'Proveedor') + (it.persona ? ' · ' + it.persona : '') : delPara(it) + (enc && enc.area ? ' · ' + enc.area : '') + (enc && enc.via === 'gmail' ? ' · reenviado' : '');
       // P88: el plazo del encargo se lee como plazo («vence hoy», «vencido hace 2 d»), no como «para hace 2 d».
       const nd = daysUntil(it.fecha_limite);
       const st = it.tipo === 'pedido' ? (PED[it.pedido_estado] || 'pedido') + (it.pedido_estado_at ? ' · ' + ago(it.pedido_estado_at) : '')
-        : nd === null ? 'desde ' + ago(it.created_at) : nd < 0 ? 'vencido ' + relDate(it.fecha_limite) : nd === 0 ? 'vence hoy' : 'plazo ' + relDate(it.fecha_limite);
+        : (delEstado(it) === 'bloqueado' ? 'bloqueado · ' : '') + (nd === null ? 'desde ' + ago(it.created_at) : nd < 0 ? 'vencido ' + relDate(it.fecha_limite) : nd === 0 ? 'vence hoy' : 'plazo ' + relDate(it.fecha_limite));
       const pr = pendingRequest(it);
       return '<div class="del" data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como resuelto"></button>' +
         '<div><span class="who">' + esc(who) + '</span><p class="what">' + esc(it.titulo) + '</p>' +
@@ -344,8 +434,12 @@
           (it.tracking ? '<a class="mini" href="' + esc(it.tracking) + '" target="_blank" rel="noopener">Seguimiento</a>' : '') +
           (it.enlace ? '<a class="mini" href="' + esc(it.enlace) + '" target="_blank" rel="noopener">Correo</a>' : '') +
           '<button class="mini" data-action="edit">Editar</button></div></div>';
-    }).join('') : '<p class="empty-s">No esperas nada de nadie. Si sueltas «encargar a…», aparecerá aquí.</p>';
+    }).join('') : conFx ? '<p class="empty-s">Nada abierto con este filtro.</p>' : '<p class="empty-s">No esperas nada de nadie. Si sueltas «encargar a…» o reenvías un correo al equipo, aparecerá aquí.</p>');
   }
+  // P144 · fichas y filtros de Delegado (no llevan data-id: no pasan por el manejador general)
+  function delFxSet(campo, v) { if (campo === 'limpiar') state.delFx = { est: '', area: '', para: '' }; else state.delFx[campo] = state.delFx[campo] === v && campo === 'est' ? '' : v; renderDelegado(); }
+  $('#delegado').addEventListener('click', (e) => { const b = e.target.closest('button[data-fx]'); if (b) delFxSet(b.dataset.fx, b.dataset.v || ''); });
+  $('#delegado').addEventListener('change', (e) => { const s = e.target.closest('select[data-fx]'); if (s) delFxSet(s.dataset.fx, s.value); });
   function renderRadar() {
     const rows = []; const hoy = ymd(today()), fin = ymd(addDays(today(), 14)); const seen = {};
     state.events.filter(isTorneo).forEach((e) => {
@@ -401,9 +495,14 @@
       : (htmlOrd || htmlReu || htmlRec ? '' : '<p class="empty-s">Sin ideas apuntadas. Lo que sueltes sin pedirme una tarea se guarda aquí.</p>');
   }
   // Hecho V1 (18/10/2026 · Sr. Vela): pestaña al final con lo ya hecho de los últimos 14 días, agrupado por día, con opción de reabrir.
-  function hechoHtml(lista) {
+  // P144 · en CNG, «Hecho» separa lo que cerraste tú de lo que se cerró solo (respuesta del equipo, nota interna, 00 Cerrado).
+  state.hechoFx = state.hechoFx || 'tu';
+  const autoC = (it) => !!(it.extra && it.extra.auto_cierre);
+  function hechoHtml(lista, modo) {
     const desde = ymd(addDays(today(), -14)); const hoy = ymd(today()); const ayer = ymd(addDays(today(), -1));
-    const hechos = lista.filter((it) => it.estado === 'hecho' && (it.hecho_at || it.updated_at) && localDay(it.hecho_at || it.updated_at) >= desde)
+    const todos = lista.filter((it) => it.estado === 'hecho' && (it.hecho_at || it.updated_at) && localDay(it.hecho_at || it.updated_at) >= desde);
+    const nSolo = todos.filter(autoC).length, nTu = todos.length - nSolo;
+    const hechos = todos.filter((it) => !modo || (modo === 'solo' ? autoC(it) : !autoC(it)))
       .sort((a, b) => String(b.hecho_at || b.updated_at).localeCompare(String(a.hecho_at || a.updated_at)));
     let dia = ''; let html = '';
     hechos.forEach((it) => {
@@ -411,12 +510,16 @@
       if (d !== dia) { dia = d; html += '<li class="plain dia"><span class="label">' + esc(d === hoy ? 'Hoy' : d === ayer ? 'Ayer' : fmtShort(d)) + '</span><span></span></li>'; }
       html += '<li class="plain" data-id="' + esc(it.id) + '"><span>✓ ' + esc(it.titulo) + (it.extra && it.extra.auto_cierre ? ' <span class="auto">se cerró solo: ' + esc(it.extra.auto_cierre.motivo || '') + '</span>' : '') + (it.persona ? ' <span class="muted">· ' + esc(it.persona) + '</span>' : '') + '</span><span class="r">' + hhmm(at) + ' <button class="mini" data-action="reopen">reabrir</button></span></li>';
     });
-    return { n: hechos.length, html: html || '<li class="plain"><span class="muted">Nada hecho en las dos últimas semanas.</span><span></span></li>' };
+    const seg = modo ? '<li class="plain hfx"><span><button type="button" class="dfx" data-hfx="tu" aria-pressed="' + (modo === 'tu') + '">Lo cerraste tú <b>' + nTu + '</b></button> '
+      + '<button type="button" class="dfx" data-hfx="solo" aria-pressed="' + (modo === 'solo') + '">Se cerró solo <b>' + nSolo + '</b></button></span><span></span></li>' : '';
+    const vacio = modo === 'solo' ? 'Nada se ha cerrado solo en las dos últimas semanas.' : modo === 'tu' ? 'No has cerrado nada en las dos últimas semanas.' : 'Nada hecho en las dos últimas semanas.';
+    return { n: todos.length, html: seg + (html || '<li class="plain"><span class="muted">' + vacio + '</span><span></span></li>') };
   }
   function renderHecho() {
-    const c = hechoHtml(cng()); $('#nHecho').textContent = c.n || ''; $('#hecho').innerHTML = c.html;
+    const c = hechoHtml(cng(), state.hechoFx); $('#nHecho').textContent = c.n || ''; $('#hecho').innerHTML = c.html;
     const p = hechoHtml(per()); $('#nPerHecho').textContent = p.n || ''; $('#perHecho').innerHTML = p.html;
   }
+  $('#hecho').addEventListener('click', (e) => { const b = e.target.closest('button[data-hfx]'); if (!b) return; state.hechoFx = b.dataset.hfx; renderHecho(); });
   function rowLi(it, right) {
     const b = blocker(it); const sz = snoozed(it);
     return '<li class="' + (b || sz ? 'blk' : '') + '" data-id="' + esc(it.id) + '"><button class="tick" data-action="done" aria-label="Marcar como hecha"></button><span class="t" data-action="edit">' + esc(it.titulo) + (b ? ' · antes: ' + esc(b.titulo) : '') + '</span><span class="r">' + esc(right != null ? right : b ? 'esperando' : sz ? 'aplazada · ' + relDate(it.pospuesto_hasta) : it.fecha_limite ? relDate(it.fecha_limite) : '') + '</span></li>';
@@ -1092,14 +1195,14 @@
   document.addEventListener('keydown', (ev) => { if (ev.key !== 'Escape') return; if (!$('#laterOverlay').hidden) closeLater(); else if (!$('#fwdOverlay').hidden) closeFwd(); else if (!$('#mailOverlay').hidden) closeMail(); else if (!$('#overlay').hidden) closeEditor(); });
 
   // ---------- pasar al equipo (V1 · 18/10/2026) ----------
-  // Prepara en Gmail un borrador de reenvío del correo original con tu nota; nunca se envía solo. Por defecto a info@cngolf.es.
+  // Prepara en Gmail un borrador de reenvío del correo original con tu nota; nunca se envía solo. Por defecto a __CORREO_2__.
   function openFwd(it) {
     state.fwdItem = it;
     $('#fTitle').textContent = 'Pasar al equipo · ' + (it.titulo || '');
     $('#fAyuda').textContent = it.equipo
       ? 'Reenvía el hilo completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. Lo vigilo como encargo durante 2 días laborables: si el equipo responde se cierra solo; si no, te aviso en «A tu firma».'
       : 'Reenvía el correo original completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. Pasa a «Delegado y en espera» con plazo de 2 días laborables: si el equipo responde se cierra solo; si no, te aviso en «A tu firma».';
-    $('#fPara').value = 'info@cngolf.es'; $('#fOtroWrap').hidden = true; $('#fOtro').value = '';
+    aplicarCorreos(document); $('#fPara').value = correo('__CORREO_2__') || '__CORREO_2__'; $('#fOtroWrap').hidden = true; $('#fOtro').value = '';
     $('#fNota').value = ''; $('#fStatus').textContent = ''; $('#fPedir').disabled = false;
     if (!$('#overlay').hidden) closeEditor();
     $('#fwdOverlay').hidden = false;
@@ -1118,6 +1221,7 @@
     const it = state.fwdItem; if (!it) return;
     const sel = $('#fPara'); const otro = sel.value === 'otro';
     const para = (otro ? $('#fOtro').value : sel.value).trim().toLowerCase();
+    if (/__correo_\d+__/.test(para)) { $('#fStatus').textContent = 'Aún no se han cargado los correos del equipo: vuelve a intentarlo con conexión.'; cargarCorreos(); return; }
     if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(para)) { $('#fStatus').textContent = 'Escribe un correo válido.'; return; }
     const nombre = otro ? para : sel.options[sel.selectedIndex].dataset.nombre || para;
     $('#fPedir').disabled = true;
@@ -1569,7 +1673,7 @@
   const SNAP = 'dp6.snap'; const SNAPK = ['items', 'events', 'prep', 'briefing', 'briefingPrev', 'revision', 'libreta', 'solicitudes', 'sync', 'vivoRaw', 'semana', 'hist', 'vig', 'metricas', 'avisos', 'areas', 'resp'];
   function saveSnap() { try { const o = { at: Date.now() }; SNAPK.forEach((k) => { o[k] = state[k]; }); localStorage.setItem(SNAP, JSON.stringify(o)); } catch (e) {} }
   function loadSnap() { try { const s = JSON.parse(localStorage.getItem(SNAP) || 'null'); if (!s || !Array.isArray(s.items)) return false; SNAPK.forEach((k) => { if (s[k] !== undefined && s[k] !== null) state[k] = s[k]; }); state.snapAt = s.at; return true; } catch (e) { return false; } }
-  function storedUserOk() { try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^sb-.*-auth-token$/.test(k)) { const v = JSON.parse(localStorage.getItem(k)); const u = v && (v.user || (v.currentSession && v.currentSession.user)); if (u && u.email === EMAIL) return true; } } } catch (e) {} return false; }
+  function storedUserOk() { try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^sb-.*-auth-token$/.test(k)) { const v = JSON.parse(localStorage.getItem(k)); const u = v && (v.user || (v.currentSession && v.currentSession.user)); if (u && u.email && u.email === correo('__CORREO_1__')) return true; } } } catch (e) {} return false; }
   function snapTxt() { const iso = new Date(state.snapAt).toISOString(); return 'Sin conexión: ves los datos de ' + (localDay(iso) === ymd(today()) ? 'las ' : 'el ' + fmtShort(localDay(iso)) + ', ') + hhmm(iso) + '.'; }
   $('#btnSalir').addEventListener('click', () => { try { localStorage.removeItem(SNAP); localStorage.removeItem('dp6.nov'); localStorage.removeItem('dp6.novNext'); } catch (e) {} });
 
@@ -1774,7 +1878,8 @@
 
   // ---------- arranque ----------
   async function showFor(session) {
-    let ok = !!(session && session.user && session.user.email === EMAIL);
+    let ok = !!(session && session.user) && await esSergio(session);
+    if (ok) await cargarCorreos();
     // V6: sin red y con tu sesión guardada en este dispositivo, se abre con el último estado guardado.
     const sinRed = !ok && !session && navigator.onLine === false && storedUserOk();
     if (sinRed) ok = true;
