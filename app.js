@@ -43,7 +43,7 @@
   const CODIGOS = { P: 'propio', F: 'federativo', PO: 'pool', PR: 'privado', PB: 'privado benéfico', A: 'abierto', AB: 'abierto benéfico', B: 'benéfico' };
   const PED = { pedido: 'pedido', confirmado: 'confirmado', enviado: 'en camino', entregado: 'entregado', incidencia: 'incidencia' };
   const KIND = { tarea: 'Para hacer', seguimiento: 'Encargo', hablar: 'Hablar con', idea: 'Idea', vencimiento: 'Vencimiento', pedido: 'Pedido' };
-  const EMAIL = 'sergio.vela@cngolf.es';
+  const EMAIL = '__CORREO_1__';
   // V6 · incidencia del día: un asunto marcado en `extra`; vive solo en Centro › Incidencias.
   const isInc = (it) => !!(it && it.extra && it.extra.incidencia);
 
@@ -290,7 +290,7 @@
       tl.innerHTML = evs.length ? evs.map((e) => {
         const k = evKind(e); const fin = e.fin ? new Date(e.fin) : null; const ini = e.inicio ? new Date(e.inicio) : null;
         const past = !e.todo_el_dia && fin && fin <= now; const cur = !e.todo_el_dia && ini && fin && ini <= now && now < fin;
-        const att = (e.asistentes || []).filter((a) => a.email !== 'sergio.vela@cngolf.es').map((a) => (a.nombre || String(a.email || '').split('@')[0]).split(' ')[0]).filter(Boolean);
+        const att = (e.asistentes || []).filter((a) => a.email !== '__CORREO_1__').map((a) => (a.nombre || String(a.email || '').split('@')[0]).split(' ')[0]).filter(Boolean);
         const name = evName(e);
         const link = e.enlace ? '<a href="' + esc(e.enlace) + '" target="_blank" rel="noopener">' + esc(name) + '</a>' : esc(name);
         const lines = [];
@@ -1092,14 +1092,14 @@
   document.addEventListener('keydown', (ev) => { if (ev.key !== 'Escape') return; if (!$('#laterOverlay').hidden) closeLater(); else if (!$('#fwdOverlay').hidden) closeFwd(); else if (!$('#mailOverlay').hidden) closeMail(); else if (!$('#overlay').hidden) closeEditor(); });
 
   // ---------- pasar al equipo (V1 · 18/10/2026) ----------
-  // Prepara en Gmail un borrador de reenvío del correo original con tu nota; nunca se envía solo. Por defecto a info@cngolf.es.
+  // Prepara en Gmail un borrador de reenvío del correo original con tu nota; nunca se envía solo. Por defecto a __CORREO_2__.
   function openFwd(it) {
     state.fwdItem = it;
     $('#fTitle').textContent = 'Pasar al equipo · ' + (it.titulo || '');
     $('#fAyuda').textContent = it.equipo
       ? 'Reenvía el hilo completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. Lo vigilo como encargo durante 2 días laborables: si el equipo responde se cierra solo; si no, te aviso en «A tu firma».'
       : 'Reenvía el correo original completo con tu nota. Queda en tus borradores de Gmail: lo envías tú con un toque. Pasa a «Delegado y en espera» con plazo de 2 días laborables: si el equipo responde se cierra solo; si no, te aviso en «A tu firma».';
-    $('#fPara').value = 'info@cngolf.es'; $('#fOtroWrap').hidden = true; $('#fOtro').value = '';
+    $('#fPara').value = '__CORREO_2__'; $('#fOtroWrap').hidden = true; $('#fOtro').value = '';
     $('#fNota').value = ''; $('#fStatus').textContent = ''; $('#fPedir').disabled = false;
     if (!$('#overlay').hidden) closeEditor();
     $('#fwdOverlay').hidden = false;
